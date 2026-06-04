@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Cite It! — APA Citation Card Game</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#faf7f2;font-family:'Georgia','Times New Roman',serif;overflow-x:hidden}
+.card-hover{transition:transform 0.15s,box-shadow 0.15s}
+.card-hover:hover{transform:translateY(-4px) rotate(-1deg);box-shadow:0 8px 24px rgba(0,0,0,0.15)!important}
+.card-hover:active{transform:scale(0.96)}
+.slot-hover:hover{border-color:#1a1a2e!important;background:#f0ebe0!important}
+.btn-main{transition:all 0.15s;cursor:pointer}
+.btn-main:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,0.2)!important}
+.btn-main:active{transform:translateY(0)}
+@keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bounceIn{0%{transform:scale(0.7);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.anim-in{animation:slideIn 0.4s ease forwards}
+.bounce-in{animation:bounceIn 0.5s ease forwards}
+.shake{animation:shake 0.4s ease}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f0ebe0}::-webkit-scrollbar-thumb{background:#c8b89a;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef}=React;
+
+function createSfx(){let ctx=null;const ac=()=>{if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();return ctx};const osc=(type,freq,start,dur,gain,endFreq)=>{const c=ac(),o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,start);if(endFreq)o.frequency.exponentialRampToValueAtTime(endFreq,start+dur);g.gain.setValueAtTime(gain,start);g.gain.exponentialRampToValueAtTime(0.001,start+dur);o.connect(g);g.connect(c.destination);o.start(start);o.stop(start+dur)};return{place(){const c=ac(),n=c.currentTime;osc("sine",600,n,0.07,0.1)},return_(){const c=ac(),n=c.currentTime;osc("sine",400,n,0.07,0.08)},hint(){const c=ac(),n=c.currentTime;osc("triangle",440,n,0.1,0.08);osc("triangle",550,n+0.05,0.1,0.06)},correct(){const c=ac(),n=c.currentTime;[523,659,784,1047].forEach((f,i)=>osc("sine",f,n+i*0.07,0.25,0.13))},wrong(){const c=ac(),n=c.currentTime;osc("sawtooth",220,n,0.15,0.12);osc("sawtooth",160,n+0.12,0.18,0.1)},click(){const c=ac(),n=c.currentTime;osc("square",880,n,0.05,0.06);osc("square",1100,n+0.03,0.05,0.04)},type(){const c=ac(),n=c.currentTime;osc("square",440+Math.random()*200,n,0.03,0.04)},fanfare(){const c=ac(),n=c.currentTime;[[392,0],[523,.12],[659,.24],[784,.36],[1047,.52]].forEach(([f,t])=>osc("sine",f,n+t,0.28,0.12));[[196,0],[196,.36]].forEach(([f,t])=>osc("triangle",f,n+t,0.3,0.1))},reveal(){const c=ac(),n=c.currentTime;osc("sine",300,n,0.2,0.08,600)}}}
+let _sfx=null;const sfx=()=>{if(!_sfx)_sfx=createSfx();return _sfx};
+
+const LB_KEY="citeit_leaderboard_v1";
+function loadLeaderboard(){try{return JSON.parse(localStorage.getItem(LB_KEY)||"[]")}catch{return[]}}
+function saveToLeaderboard(entries){const existing=loadLeaderboard();const merged=[...existing,...entries];merged.sort((a,b)=>b.score-a.score||b.pct-a.pct);const top=merged.slice(0,20);localStorage.setItem(LB_KEY,JSON.stringify(top));return top}
+function downloadCSV(rows){const header="Rank,Name,Score,Points,Accuracy,Rounds,Date";const lines=rows.map((r,i)=>`${i+1},"${r.name}",${r.score},${r.points},${r.pct}%,${r.rounds},"${r.date}"`);const blob=new Blob([[header,...lines].join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="citeit_leaderboard.csv";a.click();URL.revokeObjectURL(url)}
+
+const SOURCES=[
+{id:"journal1",type:"Journal Article",typeIcon:"📄",color:"#e63946",raw:{author:"Nguyen, T. H., & Patel, R. S.",year:"2021",title:"Sleep deprivation and academic performance in college students",journal:"Journal of Educational Psychology",volume:"113",issue:"4",pages:"788–802",doi:"10.1037/edu0000612"},answer:"Nguyen, T. H., & Patel, R. S. (2021). Sleep deprivation and academic performance in college students. Journal of Educational Psychology, 113(4), 788–802. https://doi.org/10.1037/edu0000612",elements:["author","year","title","journal","volume_issue","pages","doi"],hints:["Author Last, F. M., & Author Last, F. M.","(Year).","Title in sentence case.","Journal Name in italics,","Volume(Issue),","Pages.","https://doi.org/xxxxx"]},
+{id:"book1",type:"Book",typeIcon:"📚",color:"#2a9d8f",raw:{author:"Brown, C. L.",year:"2019",title:"The craft of academic writing",edition:"3rd ed.",publisher:"University Press"},answer:"Brown, C. L. (2019). The craft of academic writing (3rd ed.). University Press.",elements:["author","year","title","edition","publisher"],hints:["Author Last, F. M.","(Year).","Title in italics and sentence case","(Edition).","Publisher."]},
+{id:"website1",type:"Webpage",typeIcon:"🌐",color:"#457b9d",raw:{author:"Centers for Disease Control and Prevention",year:"2023",title:"Mental health in college students",url:"https://www.cdc.gov/mentalhealth/college"},answer:"Centers for Disease Control and Prevention. (2023). Mental health in college students. https://www.cdc.gov/mentalhealth/college",elements:["author","year","title","url"],hints:["Author or Organization Name.","(Year, Month Day) or (Year).","Title of page in sentence case.","URL — no period at end"]},
+{id:"chapter1",type:"Book Chapter",typeIcon:"🔖",color:"#e9c46a",raw:{author:"Kim, S. J.",year:"2020",chapterTitle:"Grammar in context",editor:"Lopez, M. A. (Ed.)",bookTitle:"Foundations of writing instruction",pages:"45–68",publisher:"Academic Press"},answer:"Kim, S. J. (2020). Grammar in context. In M. A. Lopez (Ed.), Foundations of writing instruction (pp. 45–68). Academic Press.",elements:["author","year","chapterTitle","editor","bookTitle","pages","publisher"],hints:["Chapter Author Last, F. M.","(Year).","Chapter title in sentence case.","In F. M. Editor (Ed.),","Book Title in italics,","(pp. XX–XX).","Publisher."]},
+{id:"podcast1",type:"Podcast Episode",typeIcon:"🎙️",color:"#9b5de5",raw:{host:"Garcia, L.",year:"2022",month:"March",day:"14",episodeTitle:"How to write a thesis",podcastName:"The Academic Hour",url:"https://www.academichour.com/ep/42"},answer:"Garcia, L. (2022, March 14). How to write a thesis [Audio podcast episode]. In The Academic Hour. https://www.academichour.com/ep/42",elements:["host","date","episodeTitle","format","podcastName","url"],hints:["Host Last, F. M.","(Year, Month Day).","Episode title in sentence case","[Audio podcast episode].","In Podcast Name in italics.","URL"]},
+{id:"youtube1",type:"YouTube Video",typeIcon:"▶️",color:"#f4a261",raw:{author:"TED",year:"2021",month:"June",day:"8",title:"The surprising science of happiness",url:"https://www.youtube.com/watch?v=abc123"},answer:"TED. (2021, June 8). The surprising science of happiness [Video]. YouTube. https://www.youtube.com/watch?v=abc123",elements:["author","date","title","format","platform","url"],hints:["Channel Name or Person Last, F. M.","(Year, Month Day).","Title of video in sentence case","[Video].","YouTube.","URL"]},
+{id:"journal2",type:"Journal Article",typeIcon:"📄",color:"#e63946",raw:{author:"Williams, A. B.",year:"2023",title:"Social media and mental health outcomes",journal:"Psychological Science",volume:"34",issue:"2",pages:"112–128",doi:"10.1177/0956797622112"},answer:"Williams, A. B. (2023). Social media and mental health outcomes. Psychological Science, 34(2), 112–128. https://doi.org/10.1177/0956797622112",elements:["author","year","title","journal","volume_issue","pages","doi"],hints:["Author Last, F. M.","(Year).","Title in sentence case.","Journal Name in italics,","Volume(Issue),","Pages.","https://doi.org/xxxxx"]},
+{id:"noauthor1",type:"No Author Webpage",typeIcon:"🌐",color:"#457b9d",raw:{title:"APA formatting guidelines",year:"2022",siteName:"Purdue OWL",url:"https://owl.purdue.edu/apa"},answer:"APA formatting guidelines. (2022). Purdue OWL. https://owl.purdue.edu/apa",elements:["title","year","siteName","url"],hints:["Title moves to author position when no author.","(Year).","Site Name.","URL"]},
+];
+
+const ELEMENT_LABELS={author:{label:"AUTHOR",color:"#e63946",example:"Last, F. M."},year:{label:"YEAR",color:"#2a9d8f",example:"(2021)."},date:{label:"FULL DATE",color:"#2a9d8f",example:"(2021, June 8)."},title:{label:"TITLE",color:"#457b9d",example:"Title of work."},chapterTitle:{label:"CHAPTER TITLE",color:"#457b9d",example:"Chapter title."},episodeTitle:{label:"EPISODE TITLE",color:"#457b9d",example:"Episode title."},journal:{label:"JOURNAL NAME",color:"#e9c46a",example:"Journal Name,"},volume_issue:{label:"VOL(ISSUE)",color:"#f4a261",example:"34(2),"},pages:{label:"PAGES",color:"#9b5de5",example:"112–128."},doi:{label:"DOI",color:"#06b6d4",example:"https://doi.org/..."},url:{label:"URL",color:"#06b6d4",example:"https://..."},publisher:{label:"PUBLISHER",color:"#f97316",example:"Publisher."},edition:{label:"EDITION",color:"#10b981",example:"(3rd ed.)."},editor:{label:"EDITOR",color:"#ec4899",example:"In F. Editor (Ed.),"},bookTitle:{label:"BOOK TITLE",color:"#e9c46a",example:"Book Title,"},host:{label:"HOST/AUTHOR",color:"#e63946",example:"Last, F. M."},format:{label:"FORMAT TAG",color:"#8b5cf6",example:"[Video]."},platform:{label:"PLATFORM",color:"#f97316",example:"YouTube."},podcastName:{label:"PODCAST NAME",color:"#e9c46a",example:"In Podcast Name."},siteName:{label:"SITE NAME",color:"#f97316",example:"Site Name."}};
+
+function shuffle(arr){return[...arr].sort(()=>Math.random()-0.5)}
+const PLAYER_COLORS=["#e63946","#2a9d8f","#e9c46a","#9b5de5"];
+
+function App(){
+const[screen,setScreen]=useState("home");
+const[players,setPlayers]=useState([{name:"Player 1",score:0,color:"#e63946"},{name:"Player 2",score:0,color:"#2a9d8f"}]);
+const[numPlayers,setNumPlayers]=useState(2);
+const[currentPlayer,setCurrentPlayer]=useState(0);
+const[deck,setDeck]=useState([]);
+const[currentSource,setCurrentSource]=useState(null);
+const[playerHand,setPlayerHand]=useState([]);
+const[placed,setPlaced]=useState([]);
+const[showAnswer,setShowAnswer]=useState(false);
+const[roundResult,setRoundResult]=useState(null);
+const[showHint,setShowHint]=useState(false);
+const[hintsUsed,setHintsUsed]=useState(0);
+const[roundNum,setRoundNum]=useState(1);
+const[totalRounds,setTotalRounds]=useState(8);
+const[dragItem,setDragItem]=useState(null);
+const[dragOver,setDragOver]=useState(null);
+const[playerNames,setPlayerNames]=useState(["","","",""]);
+const[animIn,setAnimIn]=useState(false);
+const[leaderboard,setLeaderboard]=useState([]);
+const[newEntries,setNewEntries]=useState([]);
+const nameRefs=useRef([]);
+
+useEffect(()=>{setLeaderboard(loadLeaderboard())},[]);
+useEffect(()=>{if(screen==="game"){setAnimIn(false);setTimeout(()=>setAnimIn(true),50)}if(screen==="setup")setTimeout(()=>nameRefs.current[0]?.focus(),100)},[currentSource,screen]);
+
+const startGame=()=>{
+sfx().click();
+const ps=playerNames.slice(0,numPlayers).map((n,i)=>({name:n.trim()||`Player ${i+1}`,score:0,color:PLAYER_COLORS[i],correct:0,rounds:0}));
+setPlayers(ps);
+const shuffled=shuffle(SOURCES);
+const rounds=Math.min(totalRounds,shuffled.length);
+setDeck(shuffled.slice(0,rounds));
+setCurrentPlayer(0);setRoundNum(1);
+loadRound(shuffled[0]);setScreen("game");
+};
+
+const loadRound=(source)=>{
+sfx().reveal();
+setCurrentSource(source);setShowAnswer(false);setRoundResult(null);setShowHint(false);setHintsUsed(0);
+const cards=shuffle(source.elements).map(e=>({id:e,...ELEMENT_LABELS[e]}));
+setPlayerHand(cards);setPlaced([]);
+};
+
+const handlePlaceCard=(card)=>{if(roundResult)return;sfx().place();setPlayerHand(h=>h.filter(c=>c.id!==card.id));setPlaced(p=>[...p,card])};
+const handleReturnCard=(card)=>{if(roundResult)return;sfx().return_();setPlaced(p=>p.filter(c=>c.id!==card.id));setPlayerHand(h=>[...h,card])};
+const handleDragStart=(card,from)=>setDragItem({card,from});
+const handleDrop=(to)=>{if(!dragItem||roundResult)return;const{card,from}=dragItem;if(from==="hand"&&to==="citation")handlePlaceCard(card);if(from==="citation"&&to==="hand")handleReturnCard(card);setDragItem(null);setDragOver(null)};
+
+const checkAnswer=()=>{
+if(placed.length===0)return;
+sfx().click();
+const correct=JSON.stringify(placed.map(c=>c.id))===JSON.stringify(currentSource.elements);
+setRoundResult(correct?"correct":"incorrect");setShowAnswer(true);
+if(correct){sfx().correct();const bonus=hintsUsed===0?3:hintsUsed===1?2:1;setPlayers(ps=>ps.map((p,i)=>i===currentPlayer?{...p,score:p.score+bonus,correct:(p.correct||0)+1,rounds:(p.rounds||0)+1}:p))}
+else{sfx().wrong();setPlayers(ps=>ps.map((p,i)=>i===currentPlayer?{...p,rounds:(p.rounds||0)+1}:p))}
+};
+
+const nextRound=()=>{
+sfx().click();
+const nextIdx=roundNum;
+if(nextIdx>=deck.length){
+const date=new Date().toLocaleDateString();
+const entries=players.map(p=>({name:p.name,score:p.score,points:p.score,pct:p.rounds>0?Math.round((p.correct||0)/p.rounds*100):0,rounds:p.rounds||0,date}));
+const updated=saveToLeaderboard(entries);setLeaderboard(updated);setNewEntries(entries.map(e=>e.name));
+sfx().fanfare();setScreen("result");return;
+}
+setRoundNum(r=>r+1);setCurrentPlayer(cp=>(cp+1)%players.length);loadRound(deck[nextIdx]);
+};
+
+const cp=players[currentPlayer]||players[0];
+
+const PF=({family="'Playfair Display',serif",size="1rem",weight=700,color="#1a1a2e",children,style={}})=>React.createElement("div",{style:{fontFamily:family,fontSize:size,fontWeight:weight,color,...style}},children);
+const CF=({size="1rem",color="#1a1a2e",children,style={}})=>React.createElement("div",{style:{fontFamily:"'Crimson Pro',serif",fontSize:size,color,...style}},children);
+const Btn=({onClick,children,style={},disabled=false})=>React.createElement("button",{className:"btn-main",onClick,disabled,style:{fontFamily:"'Playfair Display',serif",fontWeight:700,border:"none",borderRadius:4,cursor:disabled?"default":"pointer",...style}},children);
+
+return(
+<div style={{minHeight:"100vh",background:"#faf7f2",position:"relative",overflow:"hidden"}}>
+<div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E")`,opacity:0.4}}/>
+
+{/* HOME */}
+{screen==="home"&&(
+<div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,position:"relative",zIndex:1}}>
+{[["0","0","0","0"],["0","0","auto","auto"],["auto","auto","0","0"],["auto","auto","auto","auto"]].map(([t,l,b,r],i)=><div key={i} style={{position:"absolute",top:t!=="auto"?20:"auto",left:l!=="auto"?20:"auto",bottom:b!=="auto"?20:"auto",right:r!=="auto"?20:"auto",width:40,height:40,borderTop:t!=="auto"?"2px solid #c8b89a":"none",borderLeft:l!=="auto"?"2px solid #c8b89a":"none",borderBottom:b!=="auto"?"2px solid #c8b89a":"none",borderRight:r!=="auto"?"2px solid #c8b89a":"none"}}/>)}
+<div style={{textAlign:"center",maxWidth:520}}>
+<div style={{position:"relative",width:120,height:90,margin:"0 auto 24px"}}>{[{top:12,left:16,rot:-8,c:"#e9c46a"},{top:6,left:8,rot:-3,c:"#2a9d8f"},{top:0,left:0,rot:2,c:"#e63946"}].map((s,i)=><div key={i} style={{position:"absolute",top:s.top,left:s.left,width:100,height:70,background:s.c,borderRadius:6,border:"1px solid rgba(0,0,0,0.1)",boxShadow:"2px 2px 8px rgba(0,0,0,0.1)",transform:`rotate(${s.rot}deg)`}}/>)}<div style={{position:"absolute",top:0,left:0,width:100,height:70,background:"#faf7f2",border:"2px solid #1a1a2e",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.6rem"}}>📚</div></div>
+<PF size="clamp(2.8rem,8vw,4.5rem)" weight={900} style={{lineHeight:1,marginBottom:8,letterSpacing:"-1px"}}>CITE IT!</PF>
+<CF size="1.2rem" color="#8b7355" style={{fontStyle:"italic",marginBottom:8}}>The APA Citation Card Game</CF>
+<div style={{width:60,height:2,background:"#c8b89a",margin:"12px auto 24px"}}/>
+<CF size="1.05rem" color="#5a4a3a" style={{lineHeight:1.7,marginBottom:36}}>Race to build correct APA citations before your opponents.<br/>Arrange the element cards in the right order to score points.</CF>
+<div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:16}}>
+<Btn onClick={()=>{sfx().click();setScreen("setup")}} style={{fontSize:"1.1rem",padding:"14px 40px",background:"#1a1a2e",color:"#faf7f2",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>PLAY NOW</Btn>
+<Btn onClick={()=>{sfx().click();setScreen("rules")}} style={{fontSize:"1rem",padding:"14px 28px",background:"transparent",color:"#1a1a2e",border:"2px solid #1a1a2e"}}>HOW TO PLAY</Btn>
+<Btn onClick={()=>{sfx().click();setLeaderboard(loadLeaderboard());setScreen("leaderboard")}} style={{fontSize:"1rem",padding:"14px 28px",background:"transparent",color:"#8b7355",border:"2px solid #c8b89a"}}>🏆 SCORES</Btn>
+</div>
+<div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",marginTop:16}}>{SOURCES.slice(0,6).map(s=><div key={s.id} style={{background:s.color+"22",border:`1px solid ${s.color}66`,color:s.color,padding:"3px 12px",borderRadius:20,fontSize:"0.78rem",fontFamily:"'Crimson Pro',serif"}}>{s.typeIcon} {s.type}</div>)}</div>
+</div>
+</div>
+)}
+
+{/* RULES */}
+{screen==="rules"&&(
+<div style={{maxWidth:640,margin:"0 auto",padding:"40px 24px",position:"relative",zIndex:1}}>
+<button onClick={()=>{sfx().click();setScreen("home")}} style={{fontFamily:"'Crimson Pro',serif",background:"transparent",border:"none",cursor:"pointer",color:"#8b7355",fontSize:"1rem",marginBottom:24,padding:0}}>← Back</button>
+<PF size="2.4rem" weight={900} style={{marginBottom:4}}>How to Play</PF>
+<div style={{width:40,height:2,background:"#c8b89a",marginBottom:28}}/>
+{[{icon:"🎯",title:"Goal",text:"Be the player with the most points when all rounds are played. Earn points by correctly arranging APA citation element cards in the right order."},{icon:"🃏",title:"On Your Turn",text:"A Source Card is revealed showing a real source (journal article, book, website, etc.). You receive a hand of Element Cards — one for each part of the citation."},{icon:"🔀",title:"Arrange the Elements",text:"Drag and drop (or tap) your Element Cards into the Citation Zone in what you think is the correct APA order. You can rearrange them before submitting."},{icon:"✅",title:"Scoring",text:"Correct order with NO hints = 3 points. Correct with 1 hint = 2 points. Correct with 2+ hints = 1 point. Incorrect = 0 points."},{icon:"💡",title:"Hints",text:"Stuck? Use a Hint to see the APA format guide for that source type. Each hint costs you a potential point."},{icon:"🔄",title:"Rounds",text:"Players take turns. After each player has gone, a new source card is revealed. The game ends after all rounds are played."},{icon:"📖",title:"APA 7th Edition",text:"All citations follow APA 7th edition format. When in doubt, remember: Author. (Year). Title. Source. DOI/URL."}].map(r=><div key={r.title} style={{display:"flex",gap:16,marginBottom:24,padding:"16px 20px",background:"white",border:"1px solid #e8e0d0",borderRadius:6}}><div style={{fontSize:"1.8rem",flexShrink:0}}>{r.icon}</div><div><PF size="1.05rem" style={{marginBottom:4}}>{r.title}</PF><CF size="1rem" color="#5a4a3a" style={{lineHeight:1.6}}>{r.text}</CF></div></div>)}
+<Btn onClick={()=>{sfx().click();setScreen("setup")}} style={{fontSize:"1rem",padding:"12px 32px",background:"#1a1a2e",color:"#faf7f2",marginTop:8,boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>START GAME →</Btn>
+</div>
+)}
+
+{/* SETUP */}
+{screen==="setup"&&(
+<div style={{maxWidth:520,margin:"0 auto",padding:"40px 24px",position:"relative",zIndex:1}}>
+<button onClick={()=>{sfx().click();setScreen("home")}} style={{fontFamily:"'Crimson Pro',serif",background:"transparent",border:"none",cursor:"pointer",color:"#8b7355",fontSize:"1rem",marginBottom:24,padding:0}}>← Back</button>
+<PF size="2rem" weight={900} style={{marginBottom:4}}>Game Setup</PF>
+<div style={{width:40,height:2,background:"#c8b89a",marginBottom:28}}/>
+<div style={{marginBottom:28}}>
+<PF size="1.05rem" style={{marginBottom:12}}>① Number of Players</PF>
+<div style={{display:"flex",gap:10}}>{[1,2,3,4].map(n=><button key={n} onClick={()=>{sfx().click();setNumPlayers(n)}} style={{flex:1,padding:"12px 8px",background:numPlayers===n?"#1a1a2e":"white",color:numPlayers===n?"#faf7f2":"#1a1a2e",border:`2px solid ${numPlayers===n?"#1a1a2e":"#e8e0d0"}`,borderRadius:4,cursor:"pointer",fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:"1.1rem",transition:"all 0.15s"}}>{n}</button>)}</div>
+</div>
+<div style={{marginBottom:28}}>
+<PF size="1.05rem" style={{marginBottom:4}}>② Enter Player Names</PF>
+<CF size="0.85rem" color="#8b7355" style={{fontStyle:"italic",marginBottom:14}}>Names will appear on the leaderboard</CF>
+{Array.from({length:numPlayers}).map((_,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}><div style={{width:14,height:14,borderRadius:"50%",background:PLAYER_COLORS[i],flexShrink:0,boxShadow:`0 0 6px ${PLAYER_COLORS[i]}88`}}/><input ref={el=>nameRefs.current[i]=el} value={playerNames[i]} onChange={e=>{setPlayerNames(ps=>ps.map((p,j)=>j===i?e.target.value:p));sfx().type()}} onKeyDown={e=>{if(e.key==="Enter"&&i<numPlayers-1)nameRefs.current[i+1]?.focus();else if(e.key==="Enter"&&i===numPlayers-1)startGame()}} placeholder={`Player ${i+1} name`} maxLength={16} style={{flex:1,padding:"11px 14px",border:`2px solid ${PLAYER_COLORS[i]}44`,borderRadius:6,fontFamily:"'Crimson Pro',serif",fontSize:"1rem",background:"white",outline:"none",color:"#1a1a2e",transition:"border-color 0.2s"}} onFocus={e=>e.target.style.borderColor=PLAYER_COLORS[i]} onBlur={e=>e.target.style.borderColor=PLAYER_COLORS[i]+"44"}/></div>)}
+</div>
+<div style={{marginBottom:32}}>
+<PF size="1.05rem" style={{marginBottom:12}}>③ Number of Rounds</PF>
+<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>{[4,6,8].map(n=><button key={n} onClick={()=>{sfx().click();setTotalRounds(n)}} style={{padding:"10px 20px",background:totalRounds===n?"#1a1a2e":"white",color:totalRounds===n?"#faf7f2":"#1a1a2e",border:`2px solid ${totalRounds===n?"#1a1a2e":"#e8e0d0"}`,borderRadius:4,cursor:"pointer",fontFamily:"'Crimson Pro',serif",fontSize:"1rem",transition:"all 0.15s"}}>{n} rounds</button>)}</div>
+</div>
+<Btn onClick={startGame} style={{width:"100%",fontSize:"1.1rem",padding:"16px",background:"#1a1a2e",color:"#faf7f2",letterSpacing:1,boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>START GAME →</Btn>
+</div>
+)}
+
+{/* GAME */}
+{screen==="game"&&currentSource&&(
+<div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px",position:"relative",zIndex:1}}>
+<div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+{players.map((p,i)=><div key={i} style={{flex:1,minWidth:100,padding:"8px 12px",background:i===currentPlayer?"#1a1a2e":"white",border:`2px solid ${i===currentPlayer?p.color:"#e8e0d0"}`,borderRadius:6,textAlign:"center",transition:"all 0.3s"}}><CF size="0.75rem" color={i===currentPlayer?"#faf7f2cc":"#8b7355"} style={{marginBottom:2}}>{p.name}</CF><PF size="1.4rem" weight={900} color={i===currentPlayer?p.color:"#1a1a2e"}>{p.score}</PF><CF size="0.65rem" color={i===currentPlayer?"#faf7f288":"#c8b89a"}>pts</CF></div>)}
+<div style={{padding:"8px 16px",background:"white",border:"1px solid #e8e0d0",borderRadius:6,textAlign:"center",minWidth:80}}><CF size="0.7rem" color="#8b7355">Round</CF><PF size="1.4rem" weight={900}>{roundNum}</PF><CF size="0.65rem" color="#c8b89a">of {Math.min(totalRounds,deck.length)}</CF></div>
+</div>
+<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,padding:"8px 14px",background:cp.color+"18",border:`1px solid ${cp.color}55`,borderRadius:6}}><div style={{width:10,height:10,borderRadius:"50%",background:cp.color}}/><CF size="1rem" color={cp.color} style={{fontWeight:600}}>{cp.name}'s turn</CF>{hintsUsed>0&&<CF size="0.8rem" color="#8b7355" style={{marginLeft:"auto"}}>💡 {hintsUsed} hint{hintsUsed>1?"s":""} used</CF>}</div>
+<div className={animIn?"anim-in":""} style={{background:"white",border:`3px solid ${currentSource.color}`,borderRadius:10,padding:"20px",marginBottom:16,boxShadow:`0 4px 20px ${currentSource.color}22`,position:"relative",overflow:"hidden"}}>
+<div style={{position:"absolute",top:0,right:0,background:currentSource.color,padding:"4px 14px",borderBottomLeftRadius:8,fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:"0.7rem",color:"white",letterSpacing:1}}>{currentSource.typeIcon} {currentSource.type.toUpperCase()}</div>
+<PF size="0.8rem" color="#8b7355" style={{marginBottom:10,letterSpacing:1,textTransform:"uppercase"}}>Source Information</PF>
+<div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",fontFamily:"'Crimson Pro',serif"}}>
+{Object.entries(currentSource.raw).map(([k,v])=>[<div key={k+"k"} style={{fontSize:"0.78rem",color:"#8b7355",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,paddingTop:2}}>{k.replace(/_/g," ")}:</div>,<div key={k+"v"} style={{fontSize:"0.95rem",color:"#1a1a2e",lineHeight:1.5}}>{v}</div>])}
+</div>
+</div>
+{showHint&&<div style={{background:"#fffbeb",border:"1px solid #e9c46a",borderRadius:8,padding:"14px 16px",marginBottom:12,fontFamily:"'Crimson Pro',serif"}}><div style={{fontWeight:700,fontSize:"0.8rem",color:"#8b7355",marginBottom:8,letterSpacing:1}}>💡 APA FORMAT — {currentSource.type.toUpperCase()}</div><div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>{currentSource.hints.map((h,i)=><span key={i}><span style={{background:Object.values(ELEMENT_LABELS)[i]?.color+"22",padding:"2px 8px",borderRadius:4,fontSize:"0.88rem",color:"#1a1a2e",fontStyle:"italic"}}>{h}</span>{i<currentSource.hints.length-1&&<span style={{color:"#c8b89a",margin:"0 2px"}}>→</span>}</span>)}</div></div>}
+<div style={{marginBottom:14}}>
+<PF size="0.85rem" color="#1a1a2e" style={{marginBottom:8,letterSpacing:1}}>CITATION ZONE — arrange cards in APA order:</PF>
+<div className="slot-hover" onDragOver={e=>{e.preventDefault();setDragOver("citation")}} onDrop={()=>handleDrop("citation")} onDragLeave={()=>setDragOver(null)} style={{minHeight:72,padding:"10px",border:`2px dashed ${dragOver==="citation"?"#1a1a2e":"#c8b89a"}`,borderRadius:8,background:dragOver==="citation"?"#f0ebe0":"#faf7f2",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",transition:"all 0.15s"}}>
+{placed.length===0&&<CF size="0.95rem" color="#c8b89a" style={{fontStyle:"italic",margin:"auto"}}>Drag cards here or tap them from your hand below ↓</CF>}
+{placed.map((card,i)=><div key={card.id} draggable onDragStart={()=>handleDragStart(card,"citation")} onClick={()=>!roundResult&&handleReturnCard(card)} className={`card-hover ${roundResult==="incorrect"?"shake":""}`} style={{background:roundResult==="correct"?"#d1fae5":roundResult==="incorrect"?"#fee2e2":card.color+"22",border:`2px solid ${roundResult==="correct"?"#10b981":roundResult==="incorrect"?"#ef4444":card.color}`,borderRadius:6,padding:"6px 12px",cursor:roundResult?"default":"pointer",fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:"0.75rem",color:roundResult==="correct"?"#065f46":roundResult==="incorrect"?"#991b1b":card.color,letterSpacing:0.5,userSelect:"none",display:"flex",alignItems:"center",gap:6}}><span style={{background:card.color,color:"white",borderRadius:"50%",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:"0.6rem",fontWeight:900,flexShrink:0}}>{i+1}</span>{card.label}</div>)}
+</div>
+</div>
+<div style={{marginBottom:14}}>
+<PF size="0.85rem" color="#8b7355" style={{marginBottom:8,letterSpacing:1}}>YOUR ELEMENT CARDS:</PF>
+<div onDragOver={e=>{e.preventDefault();setDragOver("hand")}} onDrop={()=>handleDrop("hand")} onDragLeave={()=>setDragOver(null)} style={{display:"flex",flexWrap:"wrap",gap:8,minHeight:48,padding:"8px",background:"white",border:"1px solid #e8e0d0",borderRadius:8}}>
+{playerHand.map(card=><div key={card.id} draggable onDragStart={()=>handleDragStart(card,"hand")} onClick={()=>!roundResult&&handlePlaceCard(card)} className="card-hover" style={{background:card.color+"18",border:`2px solid ${card.color}`,borderRadius:6,padding:"8px 14px",cursor:roundResult?"default":"pointer",fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:"0.75rem",color:card.color,letterSpacing:0.5,userSelect:"none"}}>{card.label}<div style={{fontFamily:"'Crimson Pro',serif",fontWeight:400,fontSize:"0.65rem",color:"#8b7355",fontStyle:"italic",marginTop:2}}>{card.example}</div></div>)}
+{playerHand.length===0&&placed.length>0&&!roundResult&&<CF size="0.88rem" color="#c8b89a" style={{fontStyle:"italic",margin:"auto"}}>All cards placed! Check your answer below.</CF>}
+</div>
+</div>
+{showAnswer&&<div className="bounce-in" style={{marginBottom:14,padding:"16px",background:roundResult==="correct"?"#d1fae5":"#fee2e2",border:`2px solid ${roundResult==="correct"?"#10b981":"#ef4444"}`,borderRadius:8}}><PF size="1rem" color={roundResult==="correct"?"#065f46":"#991b1b"} style={{marginBottom:6}}>{roundResult==="correct"?`✓ Correct! +${hintsUsed===0?3:hintsUsed===1?2:1} points`:"✗ Not quite — here's the correct citation:"}</PF><CF size="0.95rem" style={{lineHeight:1.8,background:"white",padding:"10px 14px",borderRadius:6,border:"1px solid #e8e0d0"}}>{currentSource.answer}</CF>{roundResult==="correct"&&hintsUsed>0&&<CF size="0.8rem" color="#065f46" style={{marginTop:6,fontStyle:"italic"}}>You used {hintsUsed} hint{hintsUsed>1?"s":""} — max score was {3-hintsUsed+1}pts.</CF>}</div>}
+<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+{!roundResult&&<><Btn onClick={checkAnswer} disabled={placed.length===0} style={{flex:2,padding:"12px",background:placed.length===0?"#e8e0d0":"#1a1a2e",color:placed.length===0?"#c8b89a":"white",letterSpacing:1,fontSize:"0.9rem"}}>CHECK ANSWER</Btn><Btn onClick={()=>{setShowHint(true);if(!showHint)setHintsUsed(h=>h+1);sfx().hint()}} style={{flex:1,padding:"12px",background:"#fffbeb",color:"#8b7355",border:"2px solid #e9c46a",fontSize:"0.9rem"}}>💡 HINT {showHint?"(shown)":""}</Btn></>}
+{roundResult&&<Btn onClick={nextRound} style={{flex:1,padding:"14px",background:"#1a1a2e",color:"white",letterSpacing:1,fontSize:"0.95rem",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>{roundNum>=Math.min(totalRounds,deck.length)?"SEE RESULTS →":"NEXT ROUND →"}</Btn>}
+</div>
+</div>
+)}
+
+{/* RESULT */}
+{screen==="result"&&(()=>{
+const maxScore=Math.max(...players.map(p=>p.score));
+const winners=players.filter(p=>p.score===maxScore);
+return(<div style={{maxWidth:540,margin:"0 auto",padding:"40px 24px",position:"relative",zIndex:1,textAlign:"center"}}>
+<div style={{fontSize:"3rem",marginBottom:8}}>🏆</div>
+<PF size="2.4rem" weight={900} style={{marginBottom:4}}>Game Over!</PF>
+<div style={{width:40,height:2,background:"#c8b89a",margin:"12px auto 28px"}}/>
+<div style={{background:"#fffbeb",border:"2px solid #e9c46a",borderRadius:10,padding:"20px",marginBottom:24}}><CF size="0.85rem" color="#8b7355" style={{marginBottom:4,letterSpacing:1}}>{winners.length>1?"🤝 TIE!":"👑 WINNER"}</CF><PF size="1.8rem" weight={900}>{winners.map(w=>w.name).join(" & ")}</PF><CF size="1.1rem" color="#8b7355" style={{marginTop:4}}>{maxScore} point{maxScore!==1?"s":""}</CF></div>
+<div style={{background:"white",border:"1px solid #e8e0d0",borderRadius:8,overflow:"hidden",marginBottom:28}}>
+<div style={{padding:"10px 16px",background:"#1a1a2e",fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:"0.8rem",color:"#faf7f2",letterSpacing:2}}>FINAL SCORES</div>
+{[...players].sort((a,b)=>b.score-a.score).map((p,i)=><div key={p.name} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:"1px solid #f0ebe0"}}><PF size="1.1rem" weight={900} color="#c8b89a" style={{width:24}}>#{i+1}</PF><div style={{width:10,height:10,borderRadius:"50%",background:p.color}}/><CF size="1.05rem" style={{flex:1,textAlign:"left"}}>{p.name}</CF><PF size="1.4rem" weight={900} color={p.color}>{p.score}</PF><CF size="0.75rem" color="#8b7355">pts</CF></div>)}
+</div>
+<div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
+<Btn onClick={startGame} style={{fontSize:"1rem",padding:"12px 28px",background:"#1a1a2e",color:"#faf7f2",letterSpacing:1,boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>PLAY AGAIN</Btn>
+<Btn onClick={()=>{sfx().click();setScreen("setup")}} style={{fontSize:"1rem",padding:"12px 28px",background:"transparent",color:"#1a1a2e",border:"2px solid #1a1a2e",letterSpacing:1}}>CHANGE SETTINGS</Btn>
+</div>
+<div style={{marginTop:16}}><Btn onClick={()=>{sfx().click();setLeaderboard(loadLeaderboard());setScreen("leaderboard")}} style={{fontSize:"1rem",padding:"12px 28px",background:"transparent",color:"#8b7355",border:"2px solid #c8b89a",letterSpacing:1}}>🏆 VIEW LEADERBOARD</Btn></div>
+</div>);
+})()}
+
+{/* LEADERBOARD */}
+{screen==="leaderboard"&&(
+<div style={{maxWidth:600,margin:"0 auto",padding:"40px 24px",position:"relative",zIndex:1}}>
+<button onClick={()=>{sfx().click();setScreen("home")}} style={{fontFamily:"'Crimson Pro',serif",background:"transparent",border:"none",cursor:"pointer",color:"#8b7355",fontSize:"1rem",marginBottom:24,padding:0}}>← Home</button>
+<div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:4,flexWrap:"wrap",gap:12}}>
+<PF size="2rem" weight={900}>🏆 Leaderboard</PF>
+<Btn onClick={()=>{sfx().click();downloadCSV(leaderboard)}} disabled={leaderboard.length===0} style={{fontSize:"0.85rem",padding:"10px 20px",background:leaderboard.length===0?"#f0ebe0":"#1a1a2e",color:leaderboard.length===0?"#c8b89a":"#faf7f2",letterSpacing:1,boxShadow:leaderboard.length===0?"none":"0 4px 12px rgba(0,0,0,0.2)"}}>⬇ DOWNLOAD CSV</Btn>
+</div>
+<div style={{width:40,height:2,background:"#c8b89a",marginBottom:8}}/>
+<CF size="0.9rem" color="#8b7355" style={{fontStyle:"italic",marginBottom:24}}>Top 20 all-time scores across all games</CF>
+{leaderboard.length===0?(<div style={{textAlign:"center",padding:"48px",background:"white",border:"1px solid #e8e0d0",borderRadius:8}}><div style={{fontSize:"2.5rem",marginBottom:12}}>📭</div><PF size="1.1rem" style={{marginBottom:6}}>No scores yet</PF><CF color="#8b7355">Play a game to get on the board!</CF></div>):(
+<div style={{background:"white",border:"1px solid #e8e0d0",borderRadius:8,overflow:"hidden"}}>
+<div style={{display:"grid",gridTemplateColumns:"40px 1fr 70px 70px 70px 80px",gap:8,padding:"10px 16px",background:"#1a1a2e",fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:"0.72rem",color:"#faf7f2cc",letterSpacing:1}}>{["#","NAME","SCORE","ACC","ROUNDS","DATE"].map(h=><div key={h}>{h}</div>)}</div>
+{leaderboard.map((entry,i)=>{const isNew=newEntries.includes(entry.name);const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":null;return(<div key={i} style={{display:"grid",gridTemplateColumns:"40px 1fr 70px 70px 70px 80px",gap:8,padding:"12px 16px",borderBottom:"1px solid #f0ebe0",background:isNew?"#fffbeb":"white",alignItems:"center"}}><PF size="1rem" weight={900} color={i<3?"#8b7355":"#c8b89a"}>{medal||i+1}</PF><CF size="1rem" style={{fontWeight:600,display:"flex",alignItems:"center",gap:6}}>{entry.name}{isNew&&<span style={{fontSize:"0.6rem",background:"#e9c46a",color:"#1a1a2e",padding:"1px 6px",borderRadius:10,fontFamily:"'Playfair Display',serif",fontWeight:700,letterSpacing:0.5}}>NEW</span>}</CF><PF size="1.1rem" weight={900} color="#e63946">{entry.score}</PF><CF size="0.95rem" color="#5a4a3a">{entry.pct}%</CF><CF size="0.9rem" color="#8b7355">{entry.rounds}</CF><CF size="0.78rem" color="#c8b89a">{entry.date}</CF></div>)})}
+</div>)}
+<div style={{display:"flex",gap:10,marginTop:20,flexWrap:"wrap"}}>
+<Btn onClick={()=>{sfx().click();setScreen("setup")}} style={{fontSize:"0.95rem",padding:"12px 24px",background:"#1a1a2e",color:"#faf7f2",letterSpacing:1,boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>PLAY AGAIN</Btn>
+{leaderboard.length>0&&<button onClick={()=>{if(window.confirm("Clear all scores?")){localStorage.removeItem(LB_KEY);setLeaderboard([]);sfx().click()}}} style={{fontFamily:"'Crimson Pro',serif",fontWeight:700,fontSize:"0.9rem",padding:"12px 20px",background:"transparent",color:"#c8b89a",border:"1px solid #e8e0d0",borderRadius:4,cursor:"pointer"}}>🗑 Clear Scores</button>}
+</div>
+</div>
+)}
+
+</div>
+);}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>

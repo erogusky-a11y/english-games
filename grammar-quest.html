@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Grammar Quest</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#020408;font-family:'Courier New',monospace;overflow-x:hidden}
+  .retro-word:hover:not(.answered){background:rgba(0,255,180,0.15)!important;border-color:#00ffb4!important;color:#00ffb4!important;text-shadow:0 0 10px #00ffb4;transform:translateY(-3px) scale(1.05)}
+  .retro-choice:hover:not(:disabled){background:rgba(0,255,180,0.15)!important;border-color:#00ffb4!important;color:#00ffb4!important;text-shadow:0 0 10px #00ffb4;transform:translateY(-2px)}
+  .retro-input{background:transparent;border:none;border-bottom:2px solid #00ffb4;color:#00ffb4;font-family:'Courier New',monospace;font-size:1.4rem;font-weight:900;letter-spacing:4px;outline:none;text-align:center;width:100%;padding:8px 0;caret-color:#00ffb4}
+  .retro-input::placeholder{color:#00ffb433}
+  .hs-row:nth-child(even){background:rgba(255,255,255,0.02)}
+  .cat-btn:hover{filter:brightness(1.2);transform:translateY(-1px)}
+  .powerup-btn:hover:not(:disabled){transform:translateY(-2px) scale(1.05)}
+  @keyframes twinkle{from{opacity:0.2}to{opacity:1}}
+  @keyframes flashFade{0%{opacity:1}100%{opacity:0}}
+  @keyframes particleFly{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--vx),var(--vy)) scale(0);opacity:0}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+  @keyframes popIn{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+  @keyframes slideUp{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
+  @keyframes streakBoom{0%{transform:translateX(-50%) scale(0) rotate(-15deg);opacity:0}60%{transform:translateX(-50%) scale(1.2) rotate(2deg);opacity:1}100%{transform:translateX(-50%) scale(1) rotate(0);opacity:1}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  @keyframes glitch{0%{text-shadow:2px 0 #ff00ff,-2px 0 #00ffff}25%{text-shadow:-2px 0 #ff00ff,2px 0 #00ffff}50%{text-shadow:2px 0 #00ffff,-2px 0 #ff00ff}100%{text-shadow:2px 0 #ff00ff,-2px 0 #00ffff}}
+  @keyframes marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
+  @keyframes cursorBlink{0%,100%{opacity:1}50%{opacity:0}}
+  @keyframes timerPulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  @keyframes achievePop{0%{transform:translateX(120%)}15%{transform:translateX(-5%)}20%{transform:translateX(0)}80%{transform:translateX(0)}100%{transform:translateX(120%)}}
+  @keyframes rankUp{0%{transform:scale(0) rotate(-10deg);opacity:0}60%{transform:scale(1.2) rotate(2deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+
+function createSoundEngine(){let ctx=null;const getCtx=()=>{if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();return ctx};const osc=(type,freq,start,dur,gain)=>{const ac=getCtx(),o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.setValueAtTime(freq,start);g.gain.setValueAtTime(gain,start);g.gain.exponentialRampToValueAtTime(0.001,start+dur);o.connect(g);g.connect(ac.destination);o.start(start);o.stop(start+dur)};return{blip(){const ac=getCtx(),n=ac.currentTime;osc("square",880,n,0.06,0.08);osc("square",1100,n+0.03,0.06,0.05)},correct(){const ac=getCtx(),n=ac.currentTime;[523,659,784,1047].forEach((f,i)=>osc("sine",f,n+i*0.07,0.25,0.15));osc("triangle",2093,n+0.1,0.3,0.06)},wrong(){const ac=getCtx(),n=ac.currentTime;osc("sawtooth",220,n,0.12,0.15);osc("sawtooth",180,n+0.1,0.15,0.12);osc("square",110,n+0.2,0.2,0.1)},powerup(){const ac=getCtx(),n=ac.currentTime;[440,550,660,880].forEach((f,i)=>osc("sine",f,n+i*0.05,0.15,0.1))},tick(){const ac=getCtx(),n=ac.currentTime;osc("square",660,n,0.04,0.05)},urgentTick(){const ac=getCtx(),n=ac.currentTime;osc("square",880,n,0.04,0.08)},achievement(){const ac=getCtx(),n=ac.currentTime;[523,659,784,1047,1319].forEach((f,i)=>osc("sine",f,n+i*0.06,0.3,0.12));osc("triangle",2093,n+0.25,0.4,0.08)},streak(lv=3){const ac=getCtx(),n=ac.currentTime,base=300+lv*60,o=ac.createOscillator(),g=ac.createGain();o.type="square";o.frequency.setValueAtTime(base,n);o.frequency.exponentialRampToValueAtTime(base*3,n+0.4);g.gain.setValueAtTime(0.12,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.5);o.connect(g);g.connect(ac.destination);o.start(n);o.stop(n+0.5);osc("sine",base*4,n+0.35,0.2,0.1)},victory(){const ac=getCtx(),n=ac.currentTime;[[392,0],[392,.12],[392,.24],[311,.36],[466,.48],[392,.6],[311,.72],[466,.84],[392,1]].forEach(([f,t])=>osc("square",f,n+t,0.18,0.13));[[98,0],[98,.36],[98,.72]].forEach(([f,t])=>osc("triangle",f,n+t,0.25,0.12))},loseLife(){const ac=getCtx(),n=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();o.type="sawtooth";o.frequency.setValueAtTime(400,n);o.frequency.exponentialRampToValueAtTime(80,n+0.6);g.gain.setValueAtTime(0.14,n);g.gain.exponentialRampToValueAtTime(0.001,n+0.65);o.connect(g);g.connect(ac.destination);o.start(n);o.stop(n+0.7)},gameOver(){const ac=getCtx(),n=ac.currentTime;[[196,0],[147,.2],[131,.4],[98,.65]].forEach(([f,t])=>osc("sawtooth",f,n+t,0.28,0.13))},type(){const ac=getCtx(),n=ac.currentTime;osc("square",440+Math.random()*200,n,0.04,0.04)}}}
+let _sfx=null;const sfx=()=>{if(!_sfx)_sfx=createSoundEngine();return _sfx};
+
+const RANKS=[{title:"Freshman",minXP:0,color:"#888",icon:"📚"},{title:"Sophomore",minXP:200,color:"#06b6d4",icon:"🖊️"},{title:"Junior",minXP:500,color:"#10b981",icon:"📝"},{title:"Senior",minXP:1000,color:"#f59e0b",icon:"🎓"},{title:"Honors Student",minXP:2000,color:"#f97316",icon:"🏅"},{title:"Valedictorian",minXP:3500,color:"#ec4899",icon:"⭐"},{title:"Grammar God",minXP:5000,color:"#ffd700",icon:"👑"}];
+const getRank=(xp)=>[...RANKS].reverse().find(r=>xp>=r.minXP)||RANKS[0];
+const getNextRank=(xp)=>RANKS.find(r=>r.minXP>xp);
+
+const ACHIEVEMENTS=[{id:"first_blood",icon:"🩸",title:"First Blood",desc:"Answer your first question",check:(s)=>s.totalAnswered>=1},{id:"streak5",icon:"🔥",title:"On Fire",desc:"Get a 5-question streak",check:(s)=>s.bestEverStreak>=5},{id:"streak10",icon:"💥",title:"Unstoppable",desc:"Get a 10-question streak",check:(s)=>s.bestEverStreak>=10},{id:"perfect",icon:"💎",title:"Flawless",desc:"Finish a round with 100% accuracy",check:(s)=>s.perfectRounds>=1},{id:"speed",icon:"⚡",title:"Speed Demon",desc:"Answer in under 3 seconds",check:(s)=>s.fastAnswers>=1},{id:"powerup",icon:"🛡️",title:"Power Player",desc:"Use your first power-up",check:(s)=>s.powerupsUsed>=1},{id:"daily",icon:"📅",title:"Daily Grind",desc:"Complete the Daily Challenge",check:(s)=>s.dailyCompleted>=1},{id:"xp500",icon:"🥈",title:"Scholar",desc:"Earn 500 total XP",check:(s)=>s.totalXP>=500},{id:"xp2000",icon:"🥇",title:"Grammar Master",desc:"Earn 2000 total XP",check:(s)=>s.totalXP>=2000},{id:"comeback",icon:"❤️",title:"Comeback Kid",desc:"Win a round with 1 life left",check:(s)=>s.comebackWins>=1},{id:"ai_question",icon:"🤖",title:"AI Challenger",desc:"Answer an AI-generated question",check:(s)=>s.aiAnswered>=1},{id:"all_cats",icon:"🌈",title:"Renaissance",desc:"Play with all 13 categories on",check:(s)=>s.allCatsPlayed>=1}];
+
+const CAT_META={"Comma Usage":{color:"#f59e0b",icon:",",desc:"Introductory clauses, lists, conjunctions"},"Comma Splices":{color:"#ff4d4d",icon:"//",desc:"Fixing run-ons joined by only a comma"},"Punctuation":{color:"#06b6d4",icon:"!",desc:"Colons, semicolons, apostrophes"},"Subject-Verb Agreement":{color:"#3b82f6",icon:"S/V",desc:"Singular/plural verb matching"},"Homophones":{color:"#ec4899",icon:"~=",desc:"Their/there/they're and more"},"Wrong Word":{color:"#f43f5e",icon:"?W",desc:"Spell-checker traps and confused words"},"Word Choice":{color:"#8b5cf6",icon:"W",desc:"Fewer/less, effect/affect, etc."},"Sentence Structure":{color:"#10b981",icon:"SS",desc:"Run-ons, fragments, modifiers"},"Verb Tense":{color:"#f97316",icon:"T",desc:"Past, present, perfect tenses"},"Pronoun Usage":{color:"#e879f9",icon:"PR",desc:"Who/whom, I/me, case agreement"},"Prepositions":{color:"#34d399",icon:"->",desc:"In/on/at, common preposition errors"},"Articles":{color:"#a78bfa",icon:"a/",desc:"A, an, the — when to use each"},"Academic Writing":{color:"#facc15",icon:"A",desc:"Formal tone, word precision"}};
+
+const ALL_QUESTIONS=[
+{type:"fill",prompt:"Where does the comma go?",before:"After I finished my essay",after:"I celebrated with pizza.",options:["essay,","essay","finished,","no comma needed"],correct:"essay,",explanation:"Use a comma after an introductory clause before the main clause.",category:"Comma Usage"},
+{type:"fill",prompt:"Choose the correctly punctuated option:",before:"I need to buy paper",after:"pens, and notebooks for class.",options:["paper,","paper","paper;","paper—"],correct:"paper,",explanation:"Oxford comma: use a comma before each item in a series of three or more.",category:"Comma Usage"},
+{type:"fix",prompt:"Click the word/punctuation that is WRONG:",sentence:["However","the","professor","canceled","class."],wrongIndex:0,correct:"However,",explanation:'Transitional words like "However" at the start must be followed by a comma.',category:"Comma Usage"},
+{type:"fill",prompt:"Which sentence uses commas correctly?",before:"",after:"",options:["My professor, Dr. Smith, is brilliant.","My, professor Dr. Smith is brilliant.","My professor Dr. Smith, is brilliant.","My professor Dr., Smith is brilliant."],correct:"My professor, Dr. Smith, is brilliant.",explanation:'Appositives like "Dr. Smith" are set off by commas on both sides.',category:"Comma Usage"},
+{type:"fix",prompt:"Click the spot that needs a comma:",sentence:["She","studied","all","night","but","she","still","felt","unprepared."],wrongIndex:3,correct:"night,",explanation:"Use a comma before a coordinating conjunction (but, and, or) joining two independent clauses.",category:"Comma Usage"},
+{type:"fill",prompt:"Pick the correctly punctuated version:",before:"",after:"",options:["The exam which was on Friday, was very hard.","The exam, which was on Friday, was very hard.","The exam which was on Friday was very hard.","The exam, which was on Friday was very hard."],correct:"The exam, which was on Friday, was very hard.",explanation:'Non-restrictive clauses are surrounded by commas.',category:"Comma Usage"},
+{type:"fill",prompt:"Choose the correct option:",before:"Yes",after:"I will submit the paper on time.",options:["Yes,","Yes;","Yes:","Yes—"],correct:"Yes,",explanation:"Introductory words like Yes, No, and Well are always followed by a comma.",category:"Comma Usage"},
+{type:"fill",prompt:"Which is punctuated correctly?",before:"",after:"",options:["I was tired, yet I kept studying.","I was tired yet, I kept studying.","I was tired yet I kept studying.","I was, tired yet I kept studying."],correct:"I was tired, yet I kept studying.",explanation:'"Yet" as a coordinating conjunction needs a comma before it.',category:"Comma Usage"},
+{type:"fill",prompt:"Choose the correct punctuation:",before:"I have three passions",after:"reading, writing, and coffee.",options:[":",";",",","—"],correct:":",explanation:"A colon introduces a list or elaboration after a complete sentence.",category:"Punctuation"},
+{type:"fill",prompt:"Which punctuation joins these two complete sentences?",before:"I studied for hours",after:"I still failed the quiz.",options:[",",";",":","."],correct:";",explanation:"A semicolon joins two related independent clauses without a conjunction.",category:"Punctuation"},
+{type:"fix",prompt:"Click the punctuation error:",sentence:["Its","important","to","proofread","your","work."],wrongIndex:0,correct:"It's",explanation:'"It\'s" = it is. "Its" shows possession.',category:"Punctuation"},
+{type:"fill",prompt:"Which sentence is correctly punctuated?",before:"",after:"",options:["The students notebooks were graded.","The students' notebooks were graded.","The student's notebooks were graded.","The students's notebooks were graded."],correct:"The students' notebooks were graded.",explanation:"For plural nouns ending in S, add only an apostrophe after the S.",category:"Punctuation"},
+{type:"fill",prompt:"Which correctly uses a dash?",before:"",after:"",options:["She had one goal—to graduate.","She had one goal—,to graduate.","She had one goal, —to graduate.","She had one goal; —to graduate."],correct:"She had one goal—to graduate.",explanation:"An em dash sets off a dramatic pause — no spaces needed around it.",category:"Punctuation"},
+{type:"fix",prompt:"Click the error:",sentence:["She","don't","understand","the","assignment."],wrongIndex:1,correct:"doesn't",explanation:'Singular subjects use "doesn\'t" not "don\'t".',category:"Subject-Verb Agreement"},
+{type:"fix",prompt:"Click the word that is WRONG:",sentence:["The","data","shows","a","clear","trend."],wrongIndex:2,correct:"show",explanation:'"Data" is plural: "The data show..."',category:"Subject-Verb Agreement"},
+{type:"fill",prompt:"Choose the correct verb form:",before:"Neither the students nor the professor",after:"happy with the results.",options:["were","was","are","be"],correct:"was",explanation:'With "neither...nor", the verb agrees with the closer subject.',category:"Subject-Verb Agreement"},
+{type:"fill",prompt:"Choose the correct verb:",before:"Everyone in the lecture halls",after:"required to have a student ID.",options:["are","is","were","be"],correct:"is",explanation:'"Everyone" always takes a singular verb.',category:"Subject-Verb Agreement"},
+{type:"fill",prompt:"Choose the correct verb:",before:"The group of students",after:"studying for finals.",options:["are","is","were","have been"],correct:"is",explanation:'Collective nouns like "group" are singular in American English.',category:"Subject-Verb Agreement"},
+{type:"fix",prompt:"Click the word that is WRONG:",sentence:["Each","of","the","essays","were","graded","separately."],wrongIndex:4,correct:"was",explanation:'"Each" is singular — use "was" not "were".',category:"Subject-Verb Agreement"},
+{type:"fill",prompt:"Choose the correct verb:",before:"Either the professor or the students",after:"to blame.",options:["is","are","was","were"],correct:"are",explanation:'With "either...or", the verb agrees with the closest subject.',category:"Subject-Verb Agreement"},
+{type:"fix",prompt:"Click the word that is WRONG:",sentence:["Their","going","to","the","library","to","study."],wrongIndex:0,correct:"They're",explanation:'"Their" shows possession. "They\'re" = they are.',category:"Homophones"},
+{type:"fill",prompt:"Which is correct?",before:"",after:"",options:["Your going to love this class.","You're going to love this class.","Youre going to love this class.","Your' going to love this class."],correct:"You're going to love this class.",explanation:'"You\'re" = you are. "Your" shows possession.',category:"Homophones"},
+{type:"fix",prompt:"Click the wrong word:",sentence:["I","need","to","study","their","for","the","exam."],wrongIndex:4,correct:"there",explanation:'"There" refers to a place. "Their" is possessive.',category:"Homophones"},
+{type:"fill",prompt:"Which is correct?",before:"",after:"",options:["It's to late to change your thesis.","Its too late to change your thesis.","It's too late to change your thesis.","Its' to late to change your thesis."],correct:"It's too late to change your thesis.",explanation:'"It\'s" = it is; "too" means excessively.',category:"Homophones"},
+{type:"fill",prompt:"Choose the correct word:",before:"The students had a big",after:"on the final exam.",options:["affect","effect","impact on","affects"],correct:"effect",explanation:'"Effect" is usually a noun (the result). "Affect" is usually a verb.',category:"Homophones"},
+{type:"fix",prompt:"Click the word that is WRONG:",sentence:["I","have","less","classes","this","semester."],wrongIndex:2,correct:"fewer",explanation:'"Fewer" for countable nouns. "Less" for uncountable things.',category:"Word Choice"},
+{type:"fill",prompt:"Which word fits best?",before:"The study",after:"a link between sleep and memory.",options:["implies","infers","suggests","insinuates"],correct:"suggests",explanation:'Research "suggests" findings. People "imply" hints.',category:"Word Choice"},
+{type:"fix",prompt:"Click the wrong word:",sentence:["Please","irregardless","of","the","results,","keep","studying."],wrongIndex:1,correct:"regardless",explanation:'"Irregardless" is not standard. Use "regardless" instead.',category:"Word Choice"},
+{type:"fill",prompt:"Which is a complete sentence?",before:"",after:"",options:["Running to class every day.","Because I was late.","She missed the lecture.","Studying hard for finals all week."],correct:"She missed the lecture.",explanation:"A complete sentence needs a subject and a verb.",category:"Sentence Structure"},
+{type:"fill",prompt:"Which option fixes this run-on: 'I studied all night I was exhausted'?",before:"",after:"",options:["I studied all night, I was exhausted.","I studied all night; I was exhausted.","I studied all night and, I was exhausted.","I studied all night I, was exhausted."],correct:"I studied all night; I was exhausted.",explanation:"A semicolon correctly separates two independent clauses.",category:"Sentence Structure"},
+{type:"fill",prompt:"Choose the correctly structured sentence:",before:"",after:"",options:["I like hiking, swimming, and to run.","I like hiking, swimming, and running.","I like to hike, swimming, and running.","I like hiking, to swim, and running."],correct:"I like hiking, swimming, and running.",explanation:"Parallel structure requires all items in a list to have the same grammatical form.",category:"Sentence Structure"},
+{type:"fill",prompt:"Choose the correct verb tense:",before:"By the time class started, she",after:"all the readings.",options:["completed","has completed","had completed","was completing"],correct:"had completed",explanation:'Use past perfect ("had completed") for an action completed before another past event.',category:"Verb Tense"},
+{type:"fix",prompt:"Click the tense error:",sentence:["Yesterday,","I","go","to","the","library","to","study."],wrongIndex:2,correct:"went",explanation:'"Yesterday" signals past tense. Use "went" not "go".',category:"Verb Tense"},
+{type:"fill",prompt:"Choose the correct tense:",before:"She",after:"on her thesis for three years now.",options:["works","worked","has been working","had worked"],correct:"has been working",explanation:"Present perfect continuous shows an action that started in the past and continues now.",category:"Verb Tense"},
+{type:"fix",prompt:"Click the tense error:",sentence:["If","I","would","have","studied","more,","I","would","have","passed."],wrongIndex:2,correct:"had",explanation:'In conditional sentences, use "had" not "would have" in the if-clause.',category:"Verb Tense"},
+{type:"fill",prompt:"Choose the correct pronoun:",before:"Between you and",after:", this exam is unfair.",options:["I","me","myself","mine"],correct:"me",explanation:'After a preposition like "between", use an object pronoun: "me" not "I".',category:"Pronoun Usage"},
+{type:"fill",prompt:"Choose the correct pronoun:",before:"",after:"",options:["Who did you speak with?","Whom did you speak with?","Whomever did you speak with?","Whoever did you speak with?"],correct:"Whom did you speak with?",explanation:'"Whom" is the object. Test: answer with "him" → him → whom.',category:"Pronoun Usage"},
+{type:"fix",prompt:"Click the error:",sentence:["The","professor","gave","feedback","to","John","and","I."],wrongIndex:7,correct:"me.",explanation:'After a verb or preposition, use "me" (object pronoun), not "I".',category:"Pronoun Usage"},
+{type:"fix",prompt:"Click the pronoun error:",sentence:["Me","and","my","roommate","studied","all","night."],wrongIndex:0,correct:"My roommate",explanation:'"I" should come last: "My roommate and I studied."',category:"Pronoun Usage"},
+{type:"fill",prompt:"Which is the most appropriate for academic writing?",before:"",after:"",options:["This study is gonna show...","This study will demonstrate...","This study's gonna prove...","This study shows (kinda)..."],correct:"This study will demonstrate...",explanation:"Academic writing avoids contractions and informal language.",category:"Academic Writing"},
+{type:"fill",prompt:"Which transition word best shows contrast?",before:"The results were positive.",after:"further research is needed.",options:["Furthermore,","However,","Therefore,","In addition,"],correct:"However,",explanation:'"However" signals contrast.',category:"Academic Writing"},
+{type:"fill",prompt:"Which is the strongest academic thesis statement?",before:"",after:"",options:["This essay is about climate change.","Climate change is bad.","Increased carbon emissions have accelerated global warming, threatening ecosystems worldwide.","I think climate change is a problem."],correct:"Increased carbon emissions have accelerated global warming, threatening ecosystems worldwide.",explanation:"A strong thesis makes a specific, arguable claim.",category:"Academic Writing"},
+{type:"fill",prompt:"Which is a comma splice?",before:"",after:"",options:["I studied, but I still failed.","I studied, I still failed.","I studied; therefore, I failed.","I studied and failed."],correct:"I studied, I still failed.",explanation:"A comma splice joins two independent clauses with only a comma.",category:"Comma Splices"},
+{type:"fill",prompt:"Which correctly fixes: 'She loves grammar, it is her favorite subject'?",before:"",after:"",options:["She loves grammar, it is her favorite subject.","She loves grammar; it is her favorite subject.","She loves grammar, and, it is her favorite subject.","She loves grammar — , it is her favorite subject."],correct:"She loves grammar; it is her favorite subject.",explanation:"Replace the comma splice with a semicolon.",category:"Comma Splices"},
+{type:"fix",prompt:"Click the comma creating a splice error:",sentence:["The","essay","was","due","Friday,","the","professor","granted","an","extension."],wrongIndex:4,correct:"Friday;",explanation:"Two independent clauses need a semicolon, not just a comma.",category:"Comma Splices"},
+{type:"fill",prompt:"Which option correctly fixes: 'I was exhausted, I took a nap'?",before:"",after:"",options:["I was exhausted, so I took a nap.","I was exhausted, I took a nap.","I was exhausted, therefore I took a nap.","I was exhausted, then took a nap."],correct:"I was exhausted, so I took a nap.",explanation:"Adding 'so' after the comma correctly joins the two clauses.",category:"Comma Splices"},
+{type:"fill",prompt:"Which sentence is NOT a comma splice?",before:"",after:"",options:["He read the chapter, he took notes.","She passed, he failed.","Although she was tired, she finished.","It rained, we stayed inside."],correct:"Although she was tired, she finished.",explanation:'"Although she was tired" is a dependent clause, so the comma is correct.',category:"Comma Splices"},
+{type:"fill",prompt:"A spell-checker changed a word. Which has the WRONG word?",before:"",after:"",options:["The colors complement each other.","Her essay complements her argument.","The students complement each other well.","That shade complements your style."],correct:"The students complement each other well.",explanation:'If the meaning is praise, it should be "compliment" (with an i).',category:"Wrong Word"},
+{type:"fix",prompt:"The spell-checker made an error. Click the WRONG word:",sentence:["The","study","had","a","profound","affect","on","policy."],wrongIndex:5,correct:"effect",explanation:'"Effect" is the noun (the result). "Affect" is usually a verb.',category:"Wrong Word"},
+{type:"fix",prompt:"Click the wrong word (a spell-checker trap):",sentence:["Their","are","many","reasons","to","study","grammar."],wrongIndex:0,correct:"There",explanation:'"There" introduces a clause. "Their" is possessive.',category:"Wrong Word"},
+{type:"fill",prompt:"Which is the CORRECT word?",before:"The new policy will",after:"many students.",options:["effect","affect","impact on","effects"],correct:"affect",explanation:'"Affect" is the verb meaning to influence.',category:"Wrong Word"},
+{type:"fill",prompt:"Choose the correct preposition:",before:"She has been studying",after:"three hours.",options:["since","for","during","by"],correct:"for",explanation:'"For" is used with a duration ("for three hours").',category:"Prepositions"},
+{type:"fill",prompt:"Choose the correct preposition:",before:"I have been at this university",after:"2020.",options:["for","since","during","from"],correct:"since",explanation:'"Since" refers to a specific point in time.',category:"Prepositions"},
+{type:"fill",prompt:"Choose the correct preposition:",before:"Please submit your essay",after:"Friday.",options:["until","by","since","for"],correct:"by",explanation:'"By Friday" means no later than Friday.',category:"Prepositions"},
+{type:"fill",prompt:"Which is correct?",before:"",after:"",options:["She is good in math.","She is good at math.","She is good on math.","She is good for math."],correct:"She is good at math.",explanation:'"Good at" is correct for a skill or subject area.',category:"Prepositions"},
+{type:"fill",prompt:"Choose the correct article:",before:"She conducted",after:"research on climate change.",options:["a","an","the","no article needed"],correct:"no article needed",explanation:'Uncountable nouns like "research" take no article when used generally.',category:"Articles"},
+{type:"fill",prompt:"Choose the correct article:",before:"I need to buy",after:"umbrella before it rains.",options:["a","an","the","no article"],correct:"an",explanation:'Use "an" before vowel sounds.',category:"Articles"},
+{type:"fill",prompt:"Choose the correct article:",before:"",after:"",options:["She is best student in class.","She is a best student in class.","She is the best student in class.","She is an best student in class."],correct:"She is the best student in class.",explanation:'Use "the" with superlatives.',category:"Articles"},
+{type:"fix",prompt:"Click the article error:",sentence:["He","wants","to","become","an","historian."],wrongIndex:4,correct:"a",explanation:'"Historian" starts with a consonant sound (/h/), so use "a".',category:"Articles"},
+{type:"fill",prompt:"Choose the correct article:",before:"I read",after:"interesting article about grammar.",options:["a","an","the","no article"],correct:"an",explanation:'"Interesting" starts with a vowel sound, so use "an".',category:"Articles"},
+{type:"fill",prompt:"Which sentence uses articles correctly?",before:"",after:"",options:["The knowledge is power.","Knowledge is the power.","Knowledge is power.","A knowledge is power."],correct:"Knowledge is power.",explanation:'Abstract uncountable nouns used as general truths take no article.',category:"Articles"},
+];
+
+function shuffle(arr){return[...arr].sort(()=>Math.random()-0.5)}
+const HS_KEY="gq_scores_v3";const PROF_KEY="gq_profile_v3";const DAILY_KEY="gq_daily_v3";
+function loadScores(){try{return JSON.parse(localStorage.getItem(HS_KEY)||"[]")}catch{return[]}}
+function saveScore(entry){const scores=loadScores();scores.push(entry);scores.sort((a,b)=>b.xp-a.xp||b.score-a.score);const top=scores.slice(0,10);localStorage.setItem(HS_KEY,JSON.stringify(top));return top}
+function loadProfile(){try{return JSON.parse(localStorage.getItem(PROF_KEY)||"null")||{totalXP:0,totalAnswered:0,bestEverStreak:0,perfectRounds:0,fastAnswers:0,powerupsUsed:0,dailyCompleted:0,comebackWins:0,aiAnswered:0,allCatsPlayed:0,achievements:[]}}catch{return{totalXP:0,totalAnswered:0,bestEverStreak:0,perfectRounds:0,fastAnswers:0,powerupsUsed:0,dailyCompleted:0,comebackWins:0,aiAnswered:0,allCatsPlayed:0,achievements:[]}}}
+function saveProfile(p){localStorage.setItem(PROF_KEY,JSON.stringify(p))}
+function loadDaily(){try{return JSON.parse(localStorage.getItem(DAILY_KEY)||"null")}catch{return null}}
+function saveDaily(d){localStorage.setItem(DAILY_KEY,JSON.stringify(d))}
+function todayStr(){return new Date().toLocaleDateString()}
+function downloadCSV(scores){const header="Rank,Name,Score,XP,Accuracy,Best Streak,Grade,Date";const rows=scores.map((s,i)=>`${i+1},"${s.name}",${s.score}/${s.total},${s.xp},${s.accuracy}%,${s.bestStreak},${s.grade},"${s.date}"`);const csv=[header,...rows].join("\n");const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="grammarquest_scores.csv";a.click();URL.revokeObjectURL(url)}
+
+const Scanlines=()=>React.createElement("div",{style:{position:"fixed",inset:0,pointerEvents:"none",zIndex:900,background:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px)"}});
+const CRTBorder=()=>React.createElement("div",{style:{position:"fixed",inset:0,pointerEvents:"none",zIndex:901,boxShadow:"inset 0 0 80px rgba(0,0,0,0.6),inset 0 0 20px rgba(0,255,180,0.03)",borderRadius:4}});
+const Stars=()=>{const stars=useRef(Array.from({length:60},(_,i)=>({id:i,x:Math.random()*100,y:Math.random()*100,size:Math.random()*2+0.5,delay:Math.random()*3,dur:1.5+Math.random()*2})));return React.createElement("div",{style:{position:"fixed",inset:0,pointerEvents:"none",overflow:"hidden"}},stars.current.map(s=>React.createElement("div",{key:s.id,style:{position:"absolute",left:`${s.x}%`,top:`${s.y}%`,width:s.size,height:s.size,borderRadius:"50%",background:"#fff",opacity:0.6,animation:`twinkle ${s.dur}s ${s.delay}s infinite alternate`}})))};
+const PixelText=({children,size=16,color="#00ffb4",glow=true,style={}})=>React.createElement("span",{style:{fontFamily:"'Courier New',monospace",fontSize:size,color,fontWeight:900,textShadow:glow?`0 0 10px ${color},0 0 20px ${color}66`:"none",letterSpacing:2,...style}},children);
+const RetroBtn=({children,onClick,color="#00ffb4",disabled=false,style={}})=>React.createElement("button",{disabled,onClick:e=>{if(!disabled){sfx().blip();onClick&&onClick(e)}},style:{background:disabled?"#111":"transparent",border:`2px solid ${disabled?"#333":color}`,color:disabled?"#333":color,fontFamily:"'Courier New',monospace",fontWeight:900,fontSize:"0.9rem",letterSpacing:2,padding:"12px 20px",cursor:disabled?"default":"pointer",textTransform:"uppercase",textShadow:disabled?"none":`0 0 8px ${color}`,boxShadow:disabled?"none":`0 0 12px ${color}44,inset 0 0 12px ${color}11`,transition:"all 0.15s",...style},onMouseEnter:e=>{if(!disabled){e.currentTarget.style.background=`${color}22`;e.currentTarget.style.boxShadow=`0 0 24px ${color}88,inset 0 0 20px ${color}22`}},onMouseLeave:e=>{if(!disabled){e.currentTarget.style.background="transparent";e.currentTarget.style.boxShadow=`0 0 12px ${color}44,inset 0 0 12px ${color}11`}}},children);
+
+async function generateAIQuestion(categories){const cat=categories[Math.floor(Math.random()*categories.length)];const prompt=`Generate ONE grammar multiple-choice question for college students about: ${cat}.\nReturn ONLY valid JSON (no markdown) in this exact format:\n{"type":"fill","prompt":"short instruction","before":"text before blank or empty string","after":"text after blank or empty string","options":["correct answer","wrong1","wrong2","wrong3"],"correct":"correct answer","explanation":"brief explanation under 20 words","category":"${cat}"}\nMake options shuffled so correct is not always first.`;try{const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:prompt}]})});const data=await res.json();const text=data.content?.find(b=>b.type==="text")?.text||"";const clean=text.replace(/```json|```/g,"").trim();const q=JSON.parse(clean);q.aiGenerated=true;return q}catch{return null}}
+
+function App(){
+const[screen,setScreen]=useState("home");
+const[playerName,setPlayerName]=useState("");
+const[nameInput,setNameInput]=useState("");
+const[numQuestions,setNumQuestions]=useState(10);
+const[selectedCats,setSelectedCats]=useState(Object.keys(CAT_META));
+const[timedMode,setTimedMode]=useState(false);
+const[questions,setQuestions]=useState([]);
+const[qIndex,setQIndex]=useState(0);
+const[score,setScore]=useState(0);
+const[streak,setStreak]=useState(0);
+const[bestStreak,setBestStreak]=useState(0);
+const[selected,setSelected]=useState(null);
+const[answered,setAnswered]=useState(false);
+const[isCorrect,setIsCorrect]=useState(null);
+const[xp,setXp]=useState(0);
+const[combo,setCombo]=useState(0);
+const[particles,setParticles]=useState([]);
+const[shake,setShake]=useState(false);
+const[showStreak,setShowStreak]=useState(false);
+const[flashScreen,setFlashScreen]=useState(null);
+const[lives,setLives]=useState(3);
+const[highScores,setHighScores]=useState([]);
+const[lastResult,setLastResult]=useState(null);
+const[profile,setProfile]=useState(loadProfile);
+const[newAchievements,setNewAchievements]=useState([]);
+const[powerups,setPowerups]=useState({fifty:1,skip:1,shield:1});
+const[shieldActive,setShieldActive]=useState(false);
+const[eliminated,setEliminated]=useState([]);
+const[timeLeft,setTimeLeft]=useState(20);
+const[timerActive,setTimerActive]=useState(false);
+const[answerTime,setAnswerTime]=useState(null);
+const[questionStart,setQuestionStart]=useState(null);
+const[aiLoading,setAiLoading]=useState(false);
+const[showAiBtn,setShowAiBtn]=useState(false);
+const[dailyDone,setDailyDone]=useState(false);
+const[newRank,setNewRank]=useState(null);
+const particleId=useRef(0);const nameRef=useRef(null);const timerRef=useRef(null);
+
+useEffect(()=>{setHighScores(loadScores());const d=loadDaily();setDailyDone(d?.date===todayStr()&&d?.done)},[]);
+useEffect(()=>{if(screen==="name"&&nameRef.current)nameRef.current.focus()},[screen]);
+useEffect(()=>{if(!timedMode||!timerActive||answered)return;if(timeLeft<=0){handleAnswer(null,null,true);return}const id=setTimeout(()=>{setTimeLeft(t=>t-1);if(timeLeft<=6)sfx().urgentTick();else if(timeLeft<=10)sfx().tick()},1000);timerRef.current=id;return()=>clearTimeout(id)},[timeLeft,timerActive,answered,timedMode]);
+
+const toggleCat=(cat)=>{sfx().blip();setSelectedCats(prev=>prev.includes(cat)?(prev.length===1?prev:prev.filter(c=>c!==cat)):[...prev,cat])};
+
+const checkAchievements=(prof)=>{const newly=[];ACHIEVEMENTS.forEach(a=>{if(!prof.achievements.includes(a.id)&&a.check(prof)){prof.achievements.push(a.id);newly.push(a)}});return newly};
+
+const startGame=(isDaily=false)=>{if(!nameInput.trim())return;sfx().blip();setPlayerName(nameInput.trim());let pool;if(isDaily){const seeded=[...ALL_QUESTIONS].sort((a,b)=>(a.category+a.prompt).localeCompare(b.category+b.prompt));pool=seeded.slice(0,10)}else{pool=ALL_QUESTIONS.filter(q=>selectedCats.includes(q.category));if(pool.length===0)pool=ALL_QUESTIONS;while(pool.length<numQuestions)pool=[...pool,...pool];pool=shuffle(pool).slice(0,numQuestions)}setQuestions(pool);setQIndex(0);setScore(0);setStreak(0);setBestStreak(0);setXp(0);setCombo(0);setSelected(null);setAnswered(false);setIsCorrect(null);setLives(3);setEliminated([]);setPowerups({fifty:1,skip:1,shield:1});setShieldActive(false);setTimeLeft(20);setTimerActive(false);setQuestionStart(Date.now());setShowAiBtn(false);setNewAchievements([]);setScreen("game");setTimeout(()=>setTimerActive(true),300)};
+
+const spawnParticles=(x,y,correct)=>{const colors=correct?["#00ffb4","#00e5ff","#ffff00","#ff00ff","#ffffff"]:["#ff3333","#ff6600","#ffcc00"];const newP=Array.from({length:correct?20:8},(_,i)=>({id:particleId.current++,x,y,vx:(Math.random()-0.5)*300,vy:(Math.random()-1)*300,color:colors[i%colors.length],size:correct?6+Math.random()*8:4+Math.random()*6,shape:correct?(Math.random()>0.5?"★":"■"):"✕"}));setParticles(p=>[...p,...newP]);setTimeout(()=>setParticles(p=>p.filter(pt=>!newP.find(np=>np.id===pt.id))),1000)};
+
+const handleAnswer=(answer,event,timeout=false)=>{if(answered)return;clearTimeout(timerRef.current);setTimerActive(false);const elapsed=(Date.now()-(questionStart||Date.now()))/1000;setAnswerTime(elapsed);const q=questions[qIndex];const correct=timeout?false:(q.type==="fix"?answer===q.wrongIndex:answer===q.correct);if(event){const r=event.currentTarget.getBoundingClientRect();spawnParticles(r.left+r.width/2,r.top+r.height/2,correct)}setSelected(timeout?"__timeout__":answer);setAnswered(true);setIsCorrect(correct);setFlashScreen(correct?"good":"bad");setTimeout(()=>setFlashScreen(null),300);if(correct){const ns=streak+1,nc=combo+1;let base=nc>=3?20:10;if(timedMode&&elapsed<3)base+=10;setScore(s=>s+1);setXp(x=>x+base);setStreak(ns);setCombo(nc);if(ns>bestStreak)setBestStreak(ns);if(ns>=3){sfx().streak(ns);setShowStreak(true);setTimeout(()=>setShowStreak(false),1500)}else sfx().correct()}else{setStreak(0);setCombo(0);if(shieldActive){sfx().powerup();setShieldActive(false)}else{const nl=lives-1;setLives(nl);if(nl<=0)sfx().gameOver();else sfx().loseLife()}setShake(true);setTimeout(()=>setShake(false),500)}};
+
+const usePowerup=(type)=>{if(answered||powerups[type]<=0)return;sfx().powerup();const prof=loadProfile();prof.powerupsUsed=(prof.powerupsUsed||0)+1;saveProfile(prof);setProfile({...prof});if(type==="fifty"){const q=questions[qIndex];const wrongOpts=q.options?q.options.filter(o=>o!==q.correct):q.sentence.map((_,i)=>i).filter(i=>i!==q.wrongIndex);const toElim=shuffle(wrongOpts).slice(0,2);setEliminated(toElim)}else if(type==="skip"){setAnswered(true);setIsCorrect(null);setSelected("__skip__");setTimerActive(false)}else if(type==="shield"){setShieldActive(true)}setPowerups(p=>({...p,[type]:p[type]-1}))};
+
+const gradeFor=(s,t)=>{const p=s/t;if(p>=0.9)return{label:"S",color:"#ffd700",msg:"PERFECT! Grammar Master!",stars:5};if(p>=0.75)return{label:"A",color:"#00ffb4",msg:"EXCELLENT! Strong skills!",stars:4};if(p>=0.6)return{label:"B",color:"#00e5ff",msg:"GOOD WORK! Keep it up!",stars:3};if(p>=0.4)return{label:"C",color:"#f59e0b",msg:"KEEP GOING! Practice more!",stars:2};return{label:"D",color:"#ff3333",msg:"STUDY HARDER! You got this!",stars:1}};
+
+const finishGame=useCallback((finalScore,finalXp,finalBestStreak,finalLives,isDaily=false)=>{const total=questions.length;const g=gradeFor(finalScore,total);const entry={name:playerName,score:finalScore,total,xp:finalXp,accuracy:Math.round(finalScore/total*100),bestStreak:finalBestStreak,grade:g.label,date:todayStr()};const updated=saveScore(entry);setHighScores(updated);setLastResult(entry);const prof=loadProfile();const prevRank=getRank(prof.totalXP);prof.totalXP=(prof.totalXP||0)+finalXp;prof.totalAnswered=(prof.totalAnswered||0)+total;prof.bestEverStreak=Math.max(prof.bestEverStreak||0,finalBestStreak);if(finalScore===total)prof.perfectRounds=(prof.perfectRounds||0)+1;if(finalLives===1&&finalScore/total>=0.6)prof.comebackWins=(prof.comebackWins||0)+1;if(selectedCats.length===Object.keys(CAT_META).length)prof.allCatsPlayed=(prof.allCatsPlayed||0)+1;if(isDaily){prof.dailyCompleted=(prof.dailyCompleted||0)+1;saveDaily({date:todayStr(),done:true});setDailyDone(true)}const newA=checkAchievements(prof);saveProfile(prof);setProfile({...prof});const newRankNow=getRank(prof.totalXP);if(newRankNow.title!==prevRank.title)setNewRank(newRankNow);if(newA.length>0){setNewAchievements(newA);sfx().achievement()}else sfx().victory();setScreen("result")},[questions,playerName,selectedCats]);
+
+const nextQuestion=()=>{sfx().blip();const curScore=score+(isCorrect?1:0);if(qIndex+1>=questions.length||lives<=0){finishGame(curScore,xp,bestStreak,lives);return}setQIndex(i=>i+1);setSelected(null);setAnswered(false);setIsCorrect(null);setEliminated([]);setTimeLeft(20);setQuestionStart(Date.now());setTimeout(()=>setTimerActive(true),200);setShowAiBtn(qIndex>=3&&Math.random()>0.7)};
+
+const loadAIQuestion=async()=>{setAiLoading(true);sfx().blip();const q=await generateAIQuestion(selectedCats);if(q){const prof=loadProfile();prof.aiAnswered=(prof.aiAnswered||0)+1;saveProfile(prof);setProfile({...prof});setQuestions(qs=>[...qs.slice(0,qIndex+1),q,...qs.slice(qIndex+1)])}setAiLoading(false);setShowAiBtn(false)};
+
+useEffect(()=>{if(lives<=0&&answered)setTimeout(()=>finishGame(score,xp,bestStreak,0),900)},[lives,answered]);
+
+const q=questions[qIndex];
+const catMeta=q?(CAT_META[q.category]||{color:"#00ffb4",icon:"?"}):{color:"#00ffb4",icon:"?"};
+const progress=questions.length>0?(qIndex/questions.length)*100:0;
+const RANK_COLORS=["#ffd700","#c0c0c0","#cd7f32","#555","#555"];
+const allCats=Object.keys(CAT_META);
+const currentRank=getRank(profile.totalXP);
+const nextRankData=getNextRank(profile.totalXP);
+const rankProgress=nextRankData?Math.min(100,((profile.totalXP-currentRank.minXP)/(nextRankData.minXP-currentRank.minXP))*100):100;
+const POWERUP_INFO={fifty:{label:"50/50",icon:"½",desc:"Remove 2 wrong answers",color:"#f59e0b"},skip:{label:"SKIP",icon:">>",desc:"Skip this question",color:"#3b82f6"},shield:{label:"SHIELD",icon:"🛡",desc:"Block next wrong answer",color:"#10b981"}};
+
+return(
+<div style={{minHeight:"100vh",background:"#020408",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+<Stars/><Scanlines/><CRTBorder/>
+{flashScreen&&<div style={{position:"fixed",inset:0,zIndex:800,pointerEvents:"none",background:flashScreen==="good"?"rgba(0,255,180,0.07)":"rgba(255,50,50,0.1)",animation:"flashFade 0.3s ease"}}/>}
+{particles.map(p=><div key={p.id} style={{position:"fixed",left:p.x,top:p.y,pointerEvents:"none",fontSize:p.size,color:p.color,zIndex:999,fontWeight:900,textShadow:`0 0 8px ${p.color}`,animation:`particleFly 0.9s ease-out forwards`,"--vx":`${p.vx}px`,"--vy":`${p.vy}px`}}>{p.shape}</div>)}
+
+{newAchievements.map((a,i)=>(
+<div key={a.id} style={{position:"fixed",right:16,top:80+i*80,zIndex:1100,background:"#0a0a0f",border:"2px solid #ffd700",padding:"12px 20px",minWidth:260,animation:"achievePop 3.5s ease forwards",animationDelay:`${i*0.3}s`,boxShadow:"0 0 30px #ffd70066"}}>
+<div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:"1.5rem"}}>{a.icon}</span><div><PixelText size={9} color="#ffd700" style={{display:"block",letterSpacing:2}}>ACHIEVEMENT!</PixelText><PixelText size={10} color="#fff" style={{display:"block"}}>{a.title}</PixelText><div style={{color:"#666",fontSize:"0.6rem",letterSpacing:1}}>{a.desc}</div></div></div>
+</div>
+))}
+
+{newRank&&(<div style={{position:"fixed",inset:0,zIndex:1050,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.85)"}} onClick={()=>setNewRank(null)}><div style={{textAlign:"center",animation:"rankUp 0.6s ease"}}><div style={{fontSize:"4rem",marginBottom:8}}>{newRank.icon}</div><PixelText size={10} color="#888" style={{display:"block",marginBottom:4,letterSpacing:3}}>RANK UP!</PixelText><PixelText size={20} color={newRank.color} style={{display:"block",marginBottom:16}}>{newRank.title.toUpperCase()}</PixelText><div style={{color:"#444",fontSize:"0.7rem",letterSpacing:2}}>TAP TO CONTINUE</div></div></div>)}
+
+{/* HOME */}
+{screen==="home"&&(
+<div style={{textAlign:"center",animation:"slideUp 0.5s ease",maxWidth:560,width:"100%",position:"relative",zIndex:10}}>
+<div style={{overflow:"hidden",borderTop:"1px solid #00ffb433",borderBottom:"1px solid #00ffb433",padding:"6px 0",marginBottom:20,background:"rgba(0,255,180,0.05)"}}><div style={{animation:"marquee 16s linear infinite",whiteSpace:"nowrap",color:"#00ffb4",fontSize:"0.7rem",letterSpacing:3}}>★ GRAMMAR QUEST ★ 13 CATEGORIES ★ TIMED MODE ★ POWER-UPS ★ AI QUESTIONS ★ DAILY CHALLENGE ★ ACHIEVEMENTS ★</div></div>
+<div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1.6rem,5vw,2.6rem)",color:"#00ffb4",textShadow:"0 0 20px #00ffb4,0 0 40px #00ffb466",animation:"glitch 4s infinite",marginBottom:4,letterSpacing:6,fontWeight:900}}>GRAMMAR</div>
+<div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1.6rem,5vw,2.6rem)",color:"#ff00ff",textShadow:"0 0 20px #ff00ff,0 0 40px #ff00ff66",marginBottom:16,letterSpacing:6,fontWeight:900}}>QUEST</div>
+<div style={{border:`1px solid ${currentRank.color}44`,background:`${currentRank.color}08`,padding:"10px 20px",marginBottom:20,display:"inline-block"}}><span style={{fontSize:"1.2rem"}}>{currentRank.icon}</span><PixelText size={10} color={currentRank.color} style={{marginLeft:8}}>{currentRank.title.toUpperCase()}</PixelText><PixelText size={8} color="#555" style={{display:"block",marginTop:4,letterSpacing:1}}>{profile.totalXP} XP TOTAL</PixelText>{nextRankData&&<div style={{height:4,background:"#111",marginTop:6,border:`1px solid ${currentRank.color}33`}}><div style={{height:"100%",width:`${rankProgress}%`,background:currentRank.color,transition:"width 0.5s"}}/></div>}</div>
+<div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginBottom:20}}>{Object.entries(CAT_META).map(([cat,meta])=>(<div key={cat} style={{border:`1px solid ${meta.color}44`,color:meta.color,background:`${meta.color}0a`,padding:"2px 8px",fontSize:"0.55rem",letterSpacing:1}}>{meta.icon} {cat}</div>))}</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,maxWidth:380,margin:"0 auto 12px"}}>
+<RetroBtn onClick={()=>{sfx().blip();setScreen("name")}} color="#00ffb4" style={{fontSize:"0.9rem",padding:"14px",fontWeight:900,letterSpacing:3}}>▶ PLAY</RetroBtn>
+<RetroBtn onClick={()=>{sfx().blip();setScreen("name")}} color="#ff00ff" style={{fontSize:"0.85rem",padding:"14px",letterSpacing:2}} disabled={dailyDone}>{dailyDone?"✓ DAILY DONE":"📅 DAILY"}</RetroBtn>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,maxWidth:380,margin:"0 auto 16px"}}>
+<RetroBtn onClick={()=>{sfx().blip();setHighScores(loadScores());setScreen("scores")}} color="#ffd700" style={{fontSize:"0.8rem",padding:"10px",letterSpacing:2}}>🏆 SCORES</RetroBtn>
+<RetroBtn onClick={()=>{sfx().blip();setScreen("achievements")}} color="#f97316" style={{fontSize:"0.8rem",padding:"10px",letterSpacing:2}}>🎖 BADGES</RetroBtn>
+</div>
+<div style={{color:"#00ffb422",fontSize:"0.6rem",letterSpacing:3,animation:"blink 1.5s infinite"}}>13 CATEGORIES · POWER-UPS · AI QUESTIONS · TIMED MODE</div>
+</div>
+)}
+
+{/* NAME + SETUP */}
+{screen==="name"&&(
+<div style={{animation:"slideUp 0.4s ease",maxWidth:580,width:"100%",zIndex:10,maxHeight:"90vh",overflowY:"auto"}}>
+<div style={{border:"2px solid #00ffb4",padding:"28px 24px",background:"rgba(0,255,180,0.03)",boxShadow:"0 0 40px #00ffb422"}}>
+<PixelText size={10} color="#888" style={{display:"block",marginBottom:16,letterSpacing:3,textAlign:"center"}}>① ENTER YOUR NAME</PixelText>
+<div style={{position:"relative",marginBottom:24}}><input ref={nameRef} className="retro-input" maxLength={12} placeholder="PLAYER_1" value={nameInput} onChange={e=>{setNameInput(e.target.value.toUpperCase());sfx().type()}} onKeyDown={e=>{if(e.key==="Enter")startGame()}}/></div>
+<div style={{borderTop:"1px solid #333",paddingTop:16,marginBottom:16}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+<div><PixelText size={10} color="#00ffb4" style={{letterSpacing:2}}>② GAME MODE</PixelText><p style={{color:"#444",fontSize:"0.6rem",letterSpacing:1,margin:"4px 0 0"}}>TIMED: 20 SECONDS PER QUESTION, SPEED BONUS XP</p></div>
+<button onClick={()=>{sfx().blip();setTimedMode(t=>!t)}} style={{background:timedMode?"rgba(255,165,0,0.2)":"transparent",border:`2px solid ${timedMode?"#f97316":"#333"}`,color:timedMode?"#f97316":"#555",padding:"8px 16px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontWeight:900,fontSize:"0.75rem",letterSpacing:2,transition:"all 0.2s",textShadow:timedMode?"0 0 8px #f97316":"none"}}>{timedMode?"⏱ ON":"⏱ OFF"}</button>
+</div>
+</div>
+<div style={{borderTop:"1px solid #333",paddingTop:16,marginBottom:16}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+<PixelText size={10} color="#00ffb4" style={{letterSpacing:2}}>③ CATEGORIES</PixelText>
+<div style={{display:"flex",gap:8}}>
+<button onClick={()=>{sfx().blip();setSelectedCats(allCats)}} style={{background:"transparent",border:"1px solid #333",color:"#555",fontSize:"0.6rem",letterSpacing:1,padding:"3px 8px",cursor:"pointer",fontFamily:"'Courier New',monospace"}}>ALL</button>
+<button onClick={()=>{sfx().blip();setSelectedCats([allCats[0]])}} style={{background:"transparent",border:"1px solid #333",color:"#555",fontSize:"0.6rem",letterSpacing:1,padding:"3px 8px",cursor:"pointer",fontFamily:"'Courier New',monospace"}}>NONE</button>
+</div>
+</div>
+<p style={{color:"#333",fontSize:"0.6rem",letterSpacing:1,margin:"0 0 10px"}}>TAP TO TOGGLE ON/OFF</p>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+{allCats.map(cat=>{const meta=CAT_META[cat],active=selectedCats.includes(cat);return(<button key={cat} className="cat-btn" onClick={()=>toggleCat(cat)} style={{background:active?`${meta.color}18`:"transparent",border:`2px solid ${active?meta.color:"#1a1a1a"}`,color:active?meta.color:"#2a2a2a",padding:"8px",cursor:"pointer",fontFamily:"'Courier New',monospace",transition:"all 0.15s",textAlign:"left",textShadow:active?`0 0 8px ${meta.color}`:"none"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:"0.85rem",fontWeight:900,minWidth:20,opacity:active?1:0.25}}>{meta.icon}</span><div style={{flex:1}}><div style={{fontSize:"0.62rem",fontWeight:900,letterSpacing:0.5,lineHeight:1.2}}>{cat}</div><div style={{fontSize:"0.5rem",opacity:active?0.6:0.2,marginTop:1,lineHeight:1.2}}>{meta.desc}</div></div><span style={{fontSize:"0.65rem",opacity:active?1:0.15}}>{active?"✔":"○"}</span></div></button>)})}
+</div>
+<p style={{color:selectedCats.length===0?"#ff3333":"#00ffb444",fontSize:"0.6rem",letterSpacing:2,margin:"8px 0 0",textAlign:"center"}}>{selectedCats.length===0?"⚠ SELECT AT LEAST ONE":`${selectedCats.length}/${allCats.length} SELECTED`}</p>
+</div>
+<div style={{borderTop:"1px solid #333",paddingTop:16,marginBottom:20}}>
+<PixelText size={10} color="#00ffb4" style={{display:"block",marginBottom:4,letterSpacing:2}}>④ HOW MANY QUESTIONS?</PixelText>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginTop:10}}>
+{[10,20,30,50].map(n=>{const active=numQuestions===n;return(<button key={n} onClick={()=>{sfx().blip();setNumQuestions(n)}} style={{background:active?"rgba(0,255,180,0.15)":"transparent",border:`2px solid ${active?"#00ffb4":"#1a1a1a"}`,color:active?"#00ffb4":"#2a2a2a",fontFamily:"'Courier New',monospace",fontWeight:900,fontSize:"1.1rem",padding:"10px 4px 6px",cursor:"pointer",transition:"all 0.15s",textShadow:active?"0 0 10px #00ffb4":"none",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}><span>{n}</span><span style={{fontSize:"0.5rem",letterSpacing:1,opacity:0.7}}>QUESTIONS</span></button>)})}
+</div>
+<p style={{color:"#00ffb444",fontSize:"0.6rem",letterSpacing:2,margin:"8px 0 0",textAlign:"center"}}>SELECTED: <span style={{color:"#00ffb4"}}>{numQuestions} QUESTIONS</span></p>
+</div>
+<div style={{display:"flex",gap:10}}>
+<RetroBtn onClick={()=>startGame(false)} color="#00ffb4" disabled={!nameInput.trim()||selectedCats.length===0} style={{flex:1,letterSpacing:2,fontSize:"0.85rem"}}>▶ START GAME</RetroBtn>
+<RetroBtn onClick={()=>setScreen("home")} color="#ff3333" style={{letterSpacing:2,fontSize:"0.85rem"}}>◀ BACK</RetroBtn>
+</div>
+</div>
+</div>
+)}
+
+{/* GAME */}
+{screen==="game"&&q&&(
+<div style={{width:"100%",maxWidth:590,zIndex:10,animation:shake?"shake 0.4s ease":"slideUp 0.3s ease"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,padding:"8px 12px",border:"1px solid #00ffb433",background:"rgba(0,255,180,0.03)"}}>
+<div style={{display:"flex",gap:4}}>{[...Array(3)].map((_,i)=><span key={i} style={{fontSize:"1rem",opacity:i<lives?1:0.15,filter:i<lives?"none":"grayscale(1)"}}>{shieldActive&&i===lives-1?"🛡️":"❤️"}</span>)}</div>
+<div style={{textAlign:"center"}}><PixelText size={8} color="#888" style={{display:"block",letterSpacing:1}}>{playerName}</PixelText><PixelText size={9} color="#ffff00">⚡{xp}XP{combo>=3?" ×2!":""}</PixelText></div>
+{timedMode&&(<div style={{textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:900,fontFamily:"'Courier New',monospace",color:timeLeft<=5?"#ff3333":timeLeft<=10?"#f97316":"#00ffb4",textShadow:timeLeft<=5?"0 0 15px #ff3333":"0 0 8px currentColor",animation:timeLeft<=5?"timerPulse 0.5s infinite":"none"}}>{timeLeft}</div><div style={{height:3,background:"#111",width:40,margin:"2px auto"}}><div style={{height:"100%",background:timeLeft<=5?"#ff3333":"#00ffb4",width:`${(timeLeft/20)*100}%`,transition:"width 1s linear"}}/></div></div>)}
+<PixelText size={10} color="#00e5ff">{qIndex+1}/{questions.length}</PixelText>
+<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:"0.9rem"}}>🔥</span><PixelText size={10} color={streak>0?"#f97316":"#333"}>{streak}</PixelText></div>
+</div>
+<div style={{height:6,background:"#111",border:"1px solid #333",marginBottom:12,overflow:"hidden"}}><div style={{height:"100%",transition:"width 0.4s steps(10)",width:`${progress}%`,background:"repeating-linear-gradient(90deg,#00ffb4 0,#00ffb4 8px,#00cc90 8px,#00cc90 12px)"}}/></div>
+<div style={{marginBottom:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><div style={{display:"inline-block",border:`1px solid ${catMeta.color}`,color:catMeta.color,background:`${catMeta.color}11`,padding:"2px 10px",fontSize:"0.6rem",letterSpacing:2}}>{catMeta.icon} {q.category.toUpperCase()}</div>{q.aiGenerated&&<div style={{border:"1px solid #a78bfa",color:"#a78bfa",background:"#a78bfa11",padding:"2px 8px",fontSize:"0.55rem",letterSpacing:2}}>🤖 AI GENERATED</div>}{timedMode&&answerTime&&answered&&isCorrect&&answerTime<3&&<div style={{border:"1px solid #ffff00",color:"#ffff00",background:"#ffff0011",padding:"2px 8px",fontSize:"0.55rem",letterSpacing:2}}>⚡ SPEED BONUS +10XP</div>}</div>
+<div style={{border:`1px solid ${catMeta.color}44`,background:"rgba(0,10,20,0.85)",padding:"20px",marginBottom:12,boxShadow:`0 0 20px ${catMeta.color}11`}}>
+<p style={{color:"#888",margin:"0 0 14px",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase"}}>{q.prompt}</p>
+{q.type==="fix"&&(<div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>{q.sentence.map((word,i)=>{const isElim=eliminated.includes(i);let bg="transparent",border="1px solid #333",color="#e2e8f0",extra={};if(isElim){bg="transparent";border="1px solid #1a1a1a";color="#222"}else if(answered){if(i===q.wrongIndex){bg=isCorrect&&selected===i?"rgba(0,255,180,0.15)":"rgba(255,50,50,0.15)";border=`2px solid ${isCorrect&&selected===i?"#00ffb4":"#ff3333"}`;color=isCorrect&&selected===i?"#00ffb4":"#ff3333";extra={textShadow:`0 0 10px ${color}`}}else if(selected===i&&!isCorrect){bg="rgba(255,50,50,0.1)";border="1px solid #ff333355";color="#ff6666"}}return(<button key={i} className={`retro-word ${answered||isElim?"answered":""}`} disabled={answered||isElim} onClick={e=>handleAnswer(i,e)} style={{background:bg,border,color,padding:"7px 12px",fontSize:"0.95rem",cursor:answered||isElim?"default":"pointer",fontFamily:"'Courier New',monospace",fontWeight:700,transition:"all 0.15s",letterSpacing:1,opacity:isElim?0.15:1,...extra}}>{word}</button>)})}</div>)}
+{q.type==="fill"&&q.before!==""&&(<p style={{color:"#e2e8f0",fontSize:"1rem",lineHeight:1.9,margin:0,letterSpacing:1}}>{q.before}{" "}<span style={{display:"inline-block",minWidth:80,borderBottom:`2px solid ${catMeta.color}`,color:answered?(isCorrect?"#00ffb4":"#ff3333"):catMeta.color,fontWeight:900,padding:"0 4px",transition:"all 0.2s"}}>{answered&&selected!=="__timeout__"&&selected!=="__skip__"?selected:"▓▓▓▓▓"}</span>{" "}{q.after}</p>)}
+{q.type==="fill"&&q.before===""&&<p style={{color:"#888",margin:"0 0 4px",fontSize:"0.75rem",letterSpacing:1}}>Pick the correct sentence:</p>}
+</div>
+{q.type==="fill"&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>{q.options.map(opt=>{const isElim=eliminated.includes(opt);let border="1px solid #222",color="#333",bg="transparent",extra={};if(!isElim){border="1px solid #2a2a2a";color="#888";if(answered){if(opt===q.correct){border="2px solid #00ffb4";color="#00ffb4";bg="rgba(0,255,180,0.1)";extra={textShadow:"0 0 8px #00ffb4"}}else if(opt===selected&&!isCorrect){border="2px solid #ff3333";color="#ff6666";bg="rgba(255,50,50,0.1)"}}}return(<button key={opt} className="retro-choice" disabled={answered||isElim} onClick={e=>handleAnswer(opt,e)} style={{background:bg,border,color,padding:"11px 8px",fontSize:"0.82rem",cursor:answered||isElim?"default":"pointer",fontFamily:"'Courier New',monospace",fontWeight:700,transition:"all 0.15s",textAlign:"left",letterSpacing:1,opacity:isElim?0.15:1,...extra}}>{opt}</button>)})}</div>)}
+{!answered&&(<div style={{display:"flex",gap:8,marginBottom:12}}>{Object.entries(POWERUP_INFO).map(([type,info])=>(<button key={type} className="powerup-btn" disabled={powerups[type]<=0||(type==="shield"&&shieldActive)} onClick={()=>usePowerup(type)} style={{flex:1,background:powerups[type]>0&&!(type==="shield"&&shieldActive)?`${info.color}11`:"transparent",border:`1px solid ${powerups[type]>0&&!(type==="shield"&&shieldActive)?info.color:"#1a1a1a"}`,color:powerups[type]>0&&!(type==="shield"&&shieldActive)?info.color:"#2a2a2a",padding:"6px 4px",cursor:powerups[type]>0?"pointer":"default",fontFamily:"'Courier New',monospace",fontSize:"0.65rem",letterSpacing:1,fontWeight:900,transition:"all 0.15s",textShadow:powerups[type]>0?`0 0 6px ${info.color}`:"none"}}><div style={{fontSize:"1rem"}}>{info.icon}</div><div>{info.label}</div>{type==="shield"&&shieldActive&&<div style={{fontSize:"0.5rem",color:"#10b981"}}>ACTIVE</div>}</button>))}{showAiBtn&&(<button className="powerup-btn" onClick={loadAIQuestion} disabled={aiLoading} style={{flex:1,background:"rgba(167,139,250,0.1)",border:"1px solid #a78bfa",color:"#a78bfa",padding:"6px 4px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:"0.65rem",letterSpacing:1,fontWeight:900,transition:"all 0.15s",textShadow:"0 0 6px #a78bfa"}}><div style={{fontSize:"1rem"}}>🤖</div><div>{aiLoading?"...":"AI Q"}</div></button>)}</div>)}
+{answered&&selected!=="__skip__"&&(<div style={{border:`2px solid ${isCorrect?"#00ffb4":"#ff3333"}`,background:isCorrect?"rgba(0,255,180,0.07)":"rgba(255,50,50,0.07)",padding:"14px",marginBottom:10,animation:"popIn 0.3s ease",boxShadow:`0 0 20px ${isCorrect?"#00ffb444":"#ff333344"}`}}><PixelText size={11} color={isCorrect?"#00ffb4":"#ff3333"} style={{display:"block",marginBottom:6}}>{selected==="__timeout__"?"⏰ TIME'S UP!":isCorrect?`✔ CORRECT! +${(timedMode&&answerTime<3)?combo>=3?30:20:combo>=3?20:10} XP`:"✘ WRONG!"}</PixelText>{!isCorrect&&q.type==="fix"&&selected!=="__timeout__"&&<p style={{color:"#ff9999",margin:"0 0 6px",fontSize:"0.75rem"}}>"{q.sentence[q.wrongIndex]}" → "{q.correct}"</p>}<p style={{color:"#556",margin:0,fontSize:"0.75rem",lineHeight:1.6,borderTop:"1px solid #2a2a2a",paddingTop:8}}>{q.explanation}</p></div>)}
+{answered&&selected==="__skip__"&&(<div style={{border:"2px solid #3b82f6",background:"rgba(59,130,246,0.07)",padding:"14px",marginBottom:10,animation:"popIn 0.3s ease"}}><PixelText size={11} color="#3b82f6" style={{display:"block"}}>⏭ SKIPPED</PixelText></div>)}
+{answered&&<RetroBtn onClick={nextQuestion} color="#00ffb4" style={{width:"100%",fontSize:"0.85rem",letterSpacing:3}}>{qIndex+1>=questions.length||lives<=0?"▶ SEE RESULTS":"▶ NEXT QUESTION"}</RetroBtn>}
+</div>
+)}
+
+{showStreak&&streak>=3&&(<div style={{position:"fixed",top:"18%",left:"50%",background:"#000",border:"3px solid #f97316",color:"#f97316",padding:"12px 28px",fontFamily:"'Courier New',monospace",fontSize:"0.95rem",zIndex:1000,animation:"streakBoom 0.4s ease",boxShadow:"0 0 40px #f9731688",letterSpacing:3,whiteSpace:"nowrap",textShadow:"0 0 20px #f97316",fontWeight:900}}>🔥 {streak}x STREAK!</div>)}
+
+{/* RESULT */}
+{screen==="result"&&lastResult&&(()=>{
+const g=gradeFor(lastResult.score,lastResult.total);
+const rank=highScores.findIndex(s=>s.name===lastResult.name&&s.xp===lastResult.xp&&s.date===lastResult.date)+1;
+return(<div style={{textAlign:"center",animation:"slideUp 0.5s ease",maxWidth:500,width:"100%",zIndex:10}}>
+<PixelText size={10} color="#888" style={{display:"block",marginBottom:4,letterSpacing:3}}>{playerName}</PixelText>
+<div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(0.9rem,3vw,1.1rem)",color:g.color,letterSpacing:4,marginBottom:6,textShadow:`0 0 20px ${g.color}`,fontWeight:900}}>GAME OVER</div>
+<div style={{width:90,height:90,margin:"10px auto",border:`3px solid ${g.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",fontSize:"2.2rem",color:g.color,animation:"popIn 0.5s ease",boxShadow:`0 0 40px ${g.color}66`,background:`${g.color}11`,fontWeight:900}}>{g.label}</div>
+<div style={{fontSize:"1.4rem",marginBottom:6,letterSpacing:4}}>{[...Array(5)].map((_,i)=><span key={i} style={{opacity:i<g.stars?1:0.15,filter:i<g.stars?`drop-shadow(0 0 6px ${g.color})`:"none"}}>★</span>)}</div>
+<PixelText size={9} color={g.color} style={{display:"block",marginBottom:4}}>{g.msg}</PixelText>
+<PixelText size={8} color="#555" style={{display:"block",marginBottom:4}}>{lastResult.score}/{lastResult.total} CORRECT</PixelText>
+{rank>0&&rank<=10&&<PixelText size={8} color="#ffd700" style={{display:"block",marginBottom:4}}>🏆 RANK #{rank}</PixelText>}
+<div style={{border:`1px solid ${currentRank.color}33`,background:`${currentRank.color}08`,padding:"8px 16px",marginBottom:12,display:"inline-block"}}><span>{currentRank.icon}</span><PixelText size={8} color={currentRank.color} style={{marginLeft:6}}>{currentRank.title.toUpperCase()}</PixelText><PixelText size={7} color="#555" style={{display:"block",marginTop:2}}>{profile.totalXP} XP {nextRankData?`/ ${nextRankData.minXP} for ${nextRankData.title}`:""}</PixelText></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>{[{icon:"⚡",label:"XP",val:lastResult.xp,color:"#ffff00"},{icon:"🔥",label:"STREAK",val:lastResult.bestStreak,color:"#f97316"},{icon:"🎯",label:"ACC",val:lastResult.accuracy+"%",color:"#00e5ff"}].map(s=>(<div key={s.label} style={{border:`1px solid ${s.color}44`,background:`${s.color}08`,padding:"12px 4px"}}><div style={{fontSize:"1.1rem"}}>{s.icon}</div><PixelText size={12} color={s.color} style={{display:"block"}}>{s.val}</PixelText><div style={{color:"#333",fontSize:"0.55rem",letterSpacing:2,marginTop:2}}>{s.label}</div></div>))}</div>
+{newAchievements.length>0&&(<div style={{marginBottom:12,border:"1px solid #ffd70033",padding:"10px",background:"rgba(255,215,0,0.03)"}}><PixelText size={8} color="#ffd700" style={{display:"block",marginBottom:8,letterSpacing:2}}>🎖 ACHIEVEMENTS UNLOCKED!</PixelText>{newAchievements.map(a=><div key={a.id} style={{color:"#888",fontSize:"0.65rem",letterSpacing:1}}>{a.icon} {a.title}</div>)}</div>)}
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+<RetroBtn onClick={()=>{setNameInput(playerName);setScreen("name")}} color="#00ffb4" style={{fontSize:"0.75rem",letterSpacing:2}}>▶ PLAY AGAIN</RetroBtn>
+<RetroBtn onClick={()=>{sfx().blip();setHighScores(loadScores());setScreen("scores")}} color="#ffd700" style={{fontSize:"0.75rem",letterSpacing:2}}>🏆 SCORES</RetroBtn>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+<RetroBtn onClick={()=>{sfx().blip();setScreen("achievements")}} color="#f97316" style={{fontSize:"0.75rem",letterSpacing:2}}>🎖 BADGES</RetroBtn>
+<RetroBtn onClick={()=>setScreen("home")} color="#ff00ff" style={{fontSize:"0.75rem",letterSpacing:2}}>⌂ HOME</RetroBtn>
+</div>
+</div>);
+})()}
+
+{/* HIGH SCORES */}
+{screen==="scores"&&(<div style={{width:"100%",maxWidth:560,zIndex:10,animation:"slideUp 0.4s ease"}}>
+<div style={{textAlign:"center",marginBottom:16}}><div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1rem,4vw,1.4rem)",color:"#ffd700",textShadow:"0 0 20px #ffd700",letterSpacing:6,fontWeight:900,marginBottom:4}}>🏆 HIGH SCORES</div><PixelText size={8} color="#555" style={{letterSpacing:3}}>TOP 10 PLAYERS</PixelText></div>
+<div style={{border:"1px solid #ffd70033",background:"rgba(255,215,0,0.03)",marginBottom:12}}>
+<div style={{display:"grid",gridTemplateColumns:"28px 1fr 50px 46px 40px 36px",gap:4,padding:"8px 12px",borderBottom:"1px solid #ffd70033",background:"rgba(255,215,0,0.05)"}}>{["#","NAME","SCORE","XP","ACC","GR"].map(h=><PixelText key={h} size={7} color="#ffd700" style={{letterSpacing:1}}>{h}</PixelText>)}</div>
+{highScores.length===0&&<div style={{padding:"28px",textAlign:"center"}}><PixelText size={9} color="#333" style={{letterSpacing:2}}>NO SCORES YET</PixelText></div>}
+{highScores.map((s,i)=>{const isPlayer=lastResult&&s.name===lastResult.name&&s.xp===lastResult.xp&&s.date===lastResult.date;return(<div key={i} className="hs-row" style={{display:"grid",gridTemplateColumns:"28px 1fr 50px 46px 40px 36px",gap:4,padding:"8px 12px",borderBottom:"1px solid #ffffff08",background:isPlayer?"rgba(0,255,180,0.05)":"",borderLeft:isPlayer?"2px solid #00ffb4":"2px solid transparent"}}><PixelText size={8} color={i<3?RANK_COLORS[i]:"#333"}>{i+1}</PixelText><PixelText size={8} color={isPlayer?"#00ffb4":"#aaa"} style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}{isPlayer?" ◀":""}</PixelText><PixelText size={8} color="#666">{s.score}/{s.total}</PixelText><PixelText size={8} color="#ffff00">{s.xp}</PixelText><PixelText size={8} color="#00e5ff">{s.accuracy}%</PixelText><PixelText size={8} color={gradeFor(s.score,s.total).color}>{s.grade}</PixelText></div>)})}
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+<RetroBtn onClick={()=>downloadCSV(highScores)} color="#00e5ff" disabled={highScores.length===0} style={{fontSize:"0.72rem",letterSpacing:2}}>⬇ DOWNLOAD CSV</RetroBtn>
+<RetroBtn onClick={()=>{if(window.confirm("Clear all scores?")){localStorage.removeItem(HS_KEY);setHighScores([]);sfx().blip()}}} color="#ff3333" disabled={highScores.length===0} style={{fontSize:"0.72rem",letterSpacing:2}}>🗑 CLEAR</RetroBtn>
+</div>
+<RetroBtn onClick={()=>setScreen("home")} color="#ff00ff" style={{width:"100%",fontSize:"0.75rem",letterSpacing:2}}>⌂ HOME</RetroBtn>
+</div>)}
+
+{/* ACHIEVEMENTS */}
+{screen==="achievements"&&(<div style={{width:"100%",maxWidth:560,zIndex:10,animation:"slideUp 0.4s ease"}}>
+<div style={{textAlign:"center",marginBottom:16}}><div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1rem,4vw,1.3rem)",color:"#f97316",textShadow:"0 0 20px #f97316",letterSpacing:4,fontWeight:900,marginBottom:4}}>🎖 ACHIEVEMENTS</div><PixelText size={8} color="#555" style={{letterSpacing:2}}>{profile.achievements.length}/{ACHIEVEMENTS.length} UNLOCKED</PixelText></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>{ACHIEVEMENTS.map(a=>{const unlocked=profile.achievements.includes(a.id);return(<div key={a.id} style={{border:`1px solid ${unlocked?"#ffd70066":"#1a1a1a"}`,background:unlocked?"rgba(255,215,0,0.05)":"rgba(255,255,255,0.01)",padding:"12px",transition:"all 0.2s"}}><div style={{fontSize:"1.4rem",marginBottom:4,filter:unlocked?"none":"grayscale(1)",opacity:unlocked?1:0.2}}>{a.icon}</div><PixelText size={8} color={unlocked?"#ffd700":"#333"} style={{display:"block",letterSpacing:1}}>{a.title}</PixelText><div style={{color:unlocked?"#555":"#222",fontSize:"0.58rem",marginTop:3,lineHeight:1.4,letterSpacing:0.5}}>{a.desc}</div>{unlocked&&<div style={{color:"#ffd70088",fontSize:"0.55rem",marginTop:4,letterSpacing:1}}>✔ UNLOCKED</div>}</div>)})}</div>
+<div style={{border:"1px solid #333",padding:"14px",marginBottom:12,background:"rgba(255,255,255,0.02)"}}><PixelText size={8} color="#888" style={{display:"block",marginBottom:10,letterSpacing:3}}>CAREER STATS</PixelText><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>{[["Total XP",profile.totalXP,"#ffff00"],["Questions Answered",profile.totalAnswered,"#00e5ff"],["Best Streak",profile.bestEverStreak,"#f97316"],["Perfect Rounds",profile.perfectRounds,"#10b981"],["Power-ups Used",profile.powerupsUsed,"#8b5cf6"],["Daily Challenges",profile.dailyCompleted,"#ec4899"]].map(([label,val,color])=>(<div key={label} style={{padding:"6px 0"}}><PixelText size={10} color={color} style={{display:"block"}}>{val||0}</PixelText><div style={{color:"#333",fontSize:"0.55rem",letterSpacing:1}}>{label}</div></div>))}</div></div>
+<RetroBtn onClick={()=>setScreen("home")} color="#ff00ff" style={{width:"100%",fontSize:"0.75rem",letterSpacing:2}}>⌂ HOME</RetroBtn>
+</div>)}
+
+</div>
+);}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
