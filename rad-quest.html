@@ -671,6 +671,57 @@ Return ONLY valid JSON:
   </div>
   )}
 
+  {/* ── RAD FLASHCARD OVERLAY ── */}
+  {radCards_screen&&(
+  <div style={{position:"fixed",inset:0,background:"#020a0f",zIndex:500,display:"flex",flexDirection:"column",padding:16,overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+    <div style={{textAlign:"center",marginBottom:12,flexShrink:0}}>
+      <div style={{fontSize:"clamp(1rem,4vw,1.5rem)",color:"#00ff88",textShadow:"0 0 20px #00ff8855",fontWeight:900,letterSpacing:4,marginBottom:2}}>☢ RAD GLOSSARY</div>
+      <div style={{color:"#1a3a1a",fontSize:"0.6rem",letterSpacing:3,marginBottom:8}}>RAD 100 KEY TERMS — TAP TO FLIP</div>
+      <input value={radSearch} onChange={e=>setRadSearch(e.target.value)} placeholder="🔍  Search terms..."
+        style={{background:"rgba(0,255,136,0.05)",border:"1px solid #00ff8833",color:"#00ff88",fontFamily:"'Courier New',monospace",fontSize:"0.82rem",padding:"8px 12px",outline:"none",width:"100%",maxWidth:420,borderRadius:4,marginBottom:8}}/>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
+        {["All",...RAD_CATS].map(cat=>(
+          <button key={cat} onClick={()=>{sfx().click();setRadCat(cat)}}
+            style={{background:radCat===cat?"rgba(0,255,136,0.15)":"transparent",border:`1px solid ${radCat===cat?"#00ff88":"#1a3a1a"}`,color:radCat===cat?"#00ff88":"#2a4a2a",padding:"2px 10px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:"0.58rem",borderRadius:20,letterSpacing:1,transition:"all 0.15s"}}>
+            {cat}
+          </button>
+        ))}
+      </div>
+    </div>
+    <div style={{overflowY:"auto",flex:1,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:10,paddingBottom:12,alignContent:"start"}}>
+      {RAD_CARDS
+        .filter(c=>(radCat==="All"||c.cat===radCat)&&(!radSearch||c.term.toLowerCase().includes(radSearch.toLowerCase())||c.back.toLowerCase().includes(radSearch.toLowerCase())))
+        .map(card=>{
+          const flipped=radFlipped[card.term];
+          const catCol={"Radiation Protection":"#00ff88","Radiation Syndromes":"#ff4060","Radiation Biology":"#00e5ff","Radiation Interactions":"#f59e0b"}[card.cat]||"#00ff88";
+          return(
+          <div key={card.term} onClick={()=>{sfx().click();setRadFlipped(f=>({...f,[card.term]:!f[card.term]}))}}
+            style={{background:flipped?`rgba(0,255,136,0.06)`:"rgba(0,10,5,0.9)",border:`1px solid ${flipped?catCol+"55":"#1a3a1a"}`,borderRadius:6,padding:"12px",cursor:"pointer",transition:"all 0.2s",minHeight:flipped?160:85,boxShadow:flipped?`0 0 12px ${catCol}22`:"none"}}>
+            {!flipped?(
+              <>
+                <div style={{color:catCol,fontWeight:900,fontSize:"0.85rem",marginBottom:4}}>{card.icon} {card.term}</div>
+                <div style={{color:"#1a3a1a",fontSize:"0.6rem",letterSpacing:1,marginBottom:6}}>{card.cat}</div>
+                <div style={{color:"#2a4a2a",fontSize:"0.72rem",lineHeight:1.4,fontStyle:"italic"}}>{card.front}</div>
+                <div style={{color:"#1a2a1a",fontSize:"0.55rem",marginTop:6,letterSpacing:1}}>TAP TO REVEAL ▶</div>
+              </>
+            ):(
+              <>
+                <div style={{color:catCol,fontWeight:900,fontSize:"0.82rem",marginBottom:8}}>{card.icon} {card.term}</div>
+                <p style={{color:"#aaccaa",fontSize:"0.78rem",lineHeight:1.6,marginBottom:8}}>{card.back}</p>
+                <div style={{borderTop:"1px solid #1a3a1a",paddingTop:6}}>
+                  <div style={{color:"#2a4a2a",fontSize:"0.58rem",letterSpacing:1,marginBottom:2}}>EXAMPLE</div>
+                  <p style={{color:"#3a5a3a",fontSize:"0.7rem",lineHeight:1.45,fontStyle:"italic"}}>{card.example}</p>
+                </div>
+              </>
+            )}
+          </div>);
+        })
+      }
+    </div>
+    <button onClick={()=>setRadCards_screen(false)} style={{background:"transparent",border:"1px solid #00ff8844",color:"#00ff88",padding:"10px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:"0.82rem",letterSpacing:2,borderRadius:4,marginTop:10,flexShrink:0}}>← BACK TO GAME</button>
+  </div>
+  )}
+
 </div>
   );
 }
