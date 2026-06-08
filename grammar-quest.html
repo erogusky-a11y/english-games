@@ -403,6 +403,58 @@ return(<div style={{textAlign:"center",animation:"slideUp 0.5s ease",maxWidth:50
 <RetroBtn onClick={()=>setScreen("home")} color="#ff00ff" style={{width:"100%",fontSize:"0.75rem",letterSpacing:2}}>⌂ HOME</RetroBtn>
 </div>)}
 
+{/* ── GRAMMAR FLASHCARD OVERLAY ── */}
+{gramCards&&(
+<div style={{position:"fixed",inset:0,background:"#020408",zIndex:500,display:"flex",flexDirection:"column",padding:16,overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+  <div style={{textAlign:"center",marginBottom:10,flexShrink:0}}>
+    <div style={{fontSize:"clamp(1rem,4vw,1.4rem)",color:"#00ffb4",textShadow:"0 0 20px #00ffb455",fontWeight:900,letterSpacing:4,marginBottom:2}}>★ GRAMMAR GLOSSARY</div>
+    <div style={{color:"#112211",fontSize:"0.6rem",letterSpacing:3,marginBottom:8}}>KEY TERMS — TAP ANY CARD TO FLIP</div>
+    <input value={gramSearch} onChange={e=>setGramSearch(e.target.value)} placeholder="🔍  Search terms..."
+      style={{background:"rgba(0,255,180,0.04)",border:"1px solid #00ffb433",color:"#00ffb4",fontFamily:"'Courier New',monospace",fontSize:"0.82rem",padding:"8px 12px",outline:"none",width:"100%",maxWidth:420,borderRadius:4,marginBottom:8}}/>
+    <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"center"}}>
+      {["All",...GRAM_CATS].map(cat=>(
+        <button key={cat} onClick={()=>{sfx().blip();setGramCat(cat)}}
+          style={{background:gramCat===cat?"rgba(0,255,180,0.12)":"transparent",border:`1px solid ${gramCat===cat?"#00ffb4":"#112211"}`,color:gramCat===cat?"#00ffb4":"#223322",padding:"2px 9px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:"0.55rem",borderRadius:20,letterSpacing:1,transition:"all 0.15s"}}>
+          {cat}
+        </button>
+      ))}
+    </div>
+  </div>
+  <div style={{overflowY:"auto",flex:1,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(185px,1fr))",gap:9,paddingBottom:12,alignContent:"start"}}>
+    {GRAM_CARDS
+      .filter(c=>(gramCat==="All"||c.cat===gramCat)&&(!gramSearch||c.term.toLowerCase().includes(gramSearch.toLowerCase())||c.back.toLowerCase().includes(gramSearch.toLowerCase())))
+      .map(card=>{
+        const flipped=gramFlipped[card.term];
+        const catColors={"Comma Usage":"#f59e0b","Comma Splices":"#ff4d4d","Punctuation":"#06b6d4","Subject-Verb Agreement":"#3b82f6","Homophones":"#ec4899","Word Choice":"#8b5cf6","Sentence Structure":"#10b981","Verb Tense":"#f97316","Pronoun Usage":"#e879f9","Prepositions":"#34d399","Articles":"#a78bfa","Academic Writing":"#facc15"};
+        const cc=catColors[card.cat]||"#00ffb4";
+        return(
+        <div key={card.term} onClick={()=>{sfx().blip();setGramFlipped(f=>({...f,[card.term]:!f[card.term]}))}}
+          style={{background:flipped?`${cc}0a`:"rgba(0,5,10,0.9)",border:`1px solid ${flipped?cc+"55":"#112211"}`,borderRadius:6,padding:"12px",cursor:"pointer",transition:"all 0.2s",minHeight:flipped?155:80,boxShadow:flipped?`0 0 12px ${cc}22`:"none"}}>
+          {!flipped?(
+            <>
+              <div style={{color:cc,fontWeight:900,fontSize:"0.88rem",marginBottom:3}}>{card.icon} {card.term}</div>
+              <div style={{color:"#223322",fontSize:"0.58rem",letterSpacing:1,marginBottom:5}}>{card.cat}</div>
+              <div style={{color:"#2a4a2a",fontSize:"0.72rem",lineHeight:1.4,fontStyle:"italic"}}>{card.front}</div>
+              <div style={{color:"#112211",fontSize:"0.55rem",marginTop:5,letterSpacing:1}}>TAP TO REVEAL ▶</div>
+            </>
+          ):(
+            <>
+              <div style={{color:cc,fontWeight:900,fontSize:"0.82rem",marginBottom:7}}>{card.icon} {card.term}</div>
+              <p style={{color:"#aaccbb",fontSize:"0.78rem",lineHeight:1.6,marginBottom:7}}>{card.back}</p>
+              <div style={{borderTop:"1px solid #112211",paddingTop:6}}>
+                <div style={{color:"#223322",fontSize:"0.58rem",letterSpacing:1,marginBottom:2}}>EXAMPLE</div>
+                <p style={{color:"#2a4a2a",fontSize:"0.7rem",lineHeight:1.45,fontStyle:"italic"}}>{card.example}</p>
+              </div>
+            </>
+          )}
+        </div>);
+      })
+    }
+  </div>
+  <button onClick={()=>setGramCards(false)} style={{background:"transparent",border:"1px solid #00ffb433",color:"#00ffb4",padding:"10px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:"0.82rem",letterSpacing:2,borderRadius:4,marginTop:10,flexShrink:0}}>← BACK TO GAME</button>
+</div>
+)}
+
 </div>
 );}
 
