@@ -1,1 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RAD Quest — Radiology Training Game</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#050a0f;font-family:'Courier New',monospace;overflow-x:hidden}
+@keyframes twinkle{from{opacity:0.1}to{opacity:0.8}}
+@keyframes scanline{0%{top:-10%}100%{top:110%}}
+@keyframes flicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:0.8}94%{opacity:1}96%{opacity:0.9}97%{opacity:1}}
+@keyframes glitch{0%{text-shadow:2px 0 #ff0040,-2px 0 #00e5ff}25%{text-shadow:-2px 0 #ff0040,2px 0 #00e5ff}50%{text-shadow:2px 0 #00e5ff,-2px 0 #ff0040}100%{text-shadow:2px 0 #ff0040,-2px 0 #00e5ff}}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{0%{transform:scale(0.5);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+@keyframes marquee{from{transform:translateX(100%)}to{transform:translateX(-100%)}}
+@keyframes streakPop{0%{transform:translateX(-50%) scale(0);opacity:0}60%{transform:translateX(-50%) scale(1.15);opacity:1}100%{transform:translateX(-50%) scale(1);opacity:1}}
+@keyframes radBurst{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
+@keyframes heartbeat{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes sceneFade{from{opacity:0}to{opacity:1}}
+.choice-btn:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.2)}
+.choice-btn:active:not(:disabled){transform:scale(0.97)}
+.retro-input{background:transparent;border:none;border-bottom:2px solid #00e5ff;color:#00e5ff;font-family:'Courier New',monospace;font-size:1.3rem;font-weight:900;letter-spacing:3px;outline:none;text-align:center;width:100%;padding:8px 0;caret-color:#00e5ff}
+.retro-input::placeholder{color:#00e5ff33}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
 
+// ── SOUND ────────────────────────────────────────────────────────────────────
+function makeSfx(){
+  let ctx=null;
+  const ac=()=>{if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();return ctx};
+  const o=(type,freq,t,dur,vol,endFreq)=>{
+    const c=ac(),os=c.createOscillator(),g=c.createGain();
+    os.type=type;os.frequency.setValueAtTime(freq,t);
+    if(endFreq)os.frequency.exponentialRampToValueAtTime(endFreq,t+dur);
+    g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    os.connect(g);g.connect(c.destination);os.start(t);os.stop(t+dur);
+  };
+  return{
+    click(){const c=ac(),n=c.currentTime;o("square",880,n,0.05,0.07);o("square",1100,n+0.03,0.05,0.05)},
+    correct(){const c=ac(),n=c.currentTime;[523,659,784,1047].forEach((f,i)=>o("sine",f,n+i*0.07,0.22,0.12));o("triangle",2093,n+0.1,0.28,0.06)},
+    wrong(){const c=ac(),n=c.currentTime;o("sawtooth",220,n,0.12,0.14);o("sawtooth",160,n+0.1,0.16,0.1);o("square",100,n+0.2,0.18,0.08)},
+    radiation(){const c=ac(),n=c.currentTime;o("sine",200,n,0.3,0.06,800);o("triangle",400,n+0.1,0.2,0.05,100)},
+    alarm(){const c=ac(),n=c.currentTime;[440,440,440].forEach((_,i)=>{o("sawtooth",880,n+i*0.15,0.1,0.1);o("sawtooth",660,n+i*0.15+0.05,0.08,0.08)})},
+    fanfare(){const c=ac(),n=c.currentTime;[[392,0],[523,.1],[659,.2],[784,.3],[1047,.45]].forEach(([f,t])=>o("sine",f,n+t,0.25,0.11));[[196,0],[196,.3]].forEach(([f,t])=>o("triangle",f,n+t,0.28,0.09))},
+    type(){const c=ac(),n=c.currentTime;o("square",400+Math.random()*300,n,0.03,0.04)},
+    scenario(){const c=ac(),n=c.currentTime;o("sine",300,n,0.25,0.07,600);o("triangle",150,n+0.1,0.2,0.05)},
+  };
+}
+let _sfx=null;const sfx=()=>{if(!_sfx)_sfx=makeSfx();return _sfx};
+
+// ── DATA ─────────────────────────────────────────────────────────────────────
+const QUESTIONS=[
+  // FROM PDF — exact questions
+  {id:"q1",type:"mc",category:"Radiation Syndromes",difficulty:"medium",
+   stem:"Of the following early somatic effects, which one is known as 'Bone Marrow Syndrome' and can decrease the total number of blood cells, resulting in possible death?",
+   options:["Hematopoietic Syndrome","Gastrointestinal (GI) Syndrome","Central Nervous System Syndrome","Transporter Psychosis Syndrome"],
+   correct:0,
+   explanation:"Hematopoietic Syndrome (also called Bone Marrow Syndrome) occurs at doses of 1–6 Gy. It destroys blood-forming cells in the bone marrow, leading to decreased white blood cells, red blood cells, and platelets — potentially causing fatal infections or hemorrhage."},
+
+  {id:"q2",type:"mc",category:"Radiation Interactions",difficulty:"medium",
+   stem:"What type of interaction is responsible for most diagnostic x-ray damage in the human body?",
+   options:["Indirect interaction through radiolysis of water","Direct interaction with DNA","Direct collision with bone marrow","Double-strand breaks which may not be easily repaired"],
+   correct:0,
+   explanation:"About 70–80% of radiation damage in the body is INDIRECT — x-ray photons ionize water molecules (radiolysis), creating free radicals (like OH•) that then damage DNA and cellular structures. This is why the body's high water content makes it vulnerable."},
+
+  // EXPANDED CONTENT — same topics
+  {id:"q3",type:"mc",category:"Radiation Syndromes",difficulty:"hard",
+   stem:"At what approximate radiation dose range does Gastrointestinal (GI) Syndrome typically occur?",
+   options:["6–10 Gy","0.5–1 Gy","Greater than 50 Gy","1–2 Gy"],
+   correct:0,
+   explanation:"GI Syndrome occurs at doses of approximately 6–10 Gy. At these levels, cells lining the GI tract are destroyed, leading to nausea, vomiting, diarrhea, and loss of the intestinal barrier — allowing bacteria to enter the bloodstream."},
+
+  {id:"q4",type:"mc",category:"Radiation Syndromes",difficulty:"hard",
+   stem:"Central Nervous System (CNS) Syndrome is characterized by which of the following outcomes?",
+   options:["Death within hours to days — always fatal","Full recovery within 2 weeks","Decreased white blood cell count only","Reversible damage to the spinal cord"],
+   correct:0,
+   explanation:"CNS Syndrome occurs at doses exceeding 50 Gy. It is always fatal, typically within hours to days. Symptoms include disorientation, loss of consciousness, and cardiovascular collapse. No treatment can reverse CNS Syndrome."},
+
+  {id:"q5",type:"mc",category:"Radiation Biology",difficulty:"medium",
+   stem:"Which cellular component is considered the primary critical target for radiation-induced cell death?",
+   options:["DNA in the cell nucleus","The cell membrane","Mitochondria","Ribosomes"],
+   correct:0,
+   explanation:"DNA is the primary critical target. Damage to DNA — especially double-strand breaks — disrupts cell replication and can lead to cell death, mutation, or carcinogenesis. Other cellular components can be replaced, but significant DNA damage is often irreparable."},
+
+  {id:"q6",type:"mc",category:"Radiation Interactions",difficulty:"medium",
+   stem:"Free radicals produced during radiolysis of water are dangerous because they:",
+   options:["Are highly reactive and can damage DNA and proteins","Are stable molecules that accumulate in tissue","Directly ionize atomic nuclei","Cannot penetrate the cell membrane"],
+   correct:0,
+   explanation:"Free radicals (like hydroxyl radical OH•) are extremely reactive unstable molecules. They can break chemical bonds in DNA, proteins, and lipids — causing indirect radiation damage. Their short lifespan (microseconds) means damage occurs rapidly near the site of ionization."},
+
+  {id:"q7",type:"mc",category:"Radiation Protection",difficulty:"easy",
+   stem:"Which of the following best describes the ALARA principle in radiology?",
+   options:["As Low As Reasonably Achievable","Always Limit All Radiation Absorption","Achieve Lower Amounts of Radiation Always","As Little As Radiologically Acceptable"],
+   correct:0,
+   explanation:"ALARA stands for 'As Low As Reasonably Achievable.' It is the guiding principle of radiation protection — all radiation exposure should be kept as low as possible while still achieving the diagnostic or therapeutic goal. It applies to both patients and healthcare workers."},
+
+  {id:"q8",type:"mc",category:"Radiation Protection",difficulty:"medium",
+   stem:"Which type of ionizing radiation has the greatest penetrating power?",
+   options:["Gamma rays","Alpha particles","Beta particles","Neutrons at thermal energy"],
+   correct:0,
+   explanation:"Gamma rays have the greatest penetrating power of the common ionizing radiations. They can pass through the entire body and require dense shielding (like lead or thick concrete). Alpha particles are stopped by skin or paper; beta particles are stopped by a few millimeters of aluminum."},
+
+  {id:"q9",type:"mc",category:"Radiation Biology",difficulty:"medium",
+   stem:"What term describes the ability of radiation to cause cancer years or decades after exposure?",
+   options:["Stochastic (late) effect","Deterministic (early) effect","Threshold effect","Somatic acute effect"],
+   correct:0,
+   explanation:"Stochastic effects are probabilistic, late effects of radiation — including cancer induction and genetic mutations. They have no threshold dose; any exposure carries some risk. The probability of occurrence increases with dose, but severity does not. Deterministic effects have thresholds and increase in severity with dose."},
+
+  {id:"q10",type:"mc",category:"Radiation Biology",difficulty:"hard",
+   stem:"Which cells are considered MOST radiosensitive according to the Law of Bergonié and Tribondeau?",
+   options:["Rapidly dividing, undifferentiated cells","Slowly dividing, highly differentiated cells","Non-dividing nerve cells","Mature red blood cells"],
+   correct:0,
+   explanation:"The Law of Bergonié and Tribondeau states that cells are most radiosensitive when they are rapidly dividing, undifferentiated (immature), and have a long mitotic future. This is why bone marrow, gonads, and intestinal lining cells are highly radiosensitive — and why cancer cells (which divide rapidly) can be treated with radiation."},
+
+  {id:"q11",type:"mc",category:"Radiation Syndromes",difficulty:"medium",
+   stem:"The prodromal stage of Acute Radiation Syndrome (ARS) is characterized by:",
+   options:["Nausea, vomiting, and fatigue occurring within hours of exposure","Complete absence of symptoms for several weeks","Permanent bone marrow failure","Immediate cardiac arrest"],
+   correct:0,
+   explanation:"The prodromal stage is the initial stage of ARS, occurring within minutes to hours after high-dose exposure. Symptoms include nausea, vomiting, diarrhea, and fatigue. After the prodromal stage, there is typically a latent period where the patient appears to recover before the manifest illness stage."},
+
+  {id:"q12",type:"mc",category:"Radiation Interactions",difficulty:"hard",
+   stem:"In diagnostic radiology, the Compton scattering interaction is significant because it:",
+   options:["Produces scatter radiation that reduces image quality and increases patient dose","Only occurs at very high energy levels above 10 MeV","Creates radioactive isotopes in body tissue","Has no effect on soft tissue — only bone"],
+   correct:0,
+   explanation:"Compton scattering is the predominant interaction in soft tissue at diagnostic x-ray energies (30–150 kVp). The incident photon ejects an outer-shell electron and continues at a lower energy in a different direction — creating scatter radiation that degrades image contrast and contributes to staff and patient dose."},
+];
+
+const SCENARIOS=[
+  {id:"s1",category:"Clinical Scenario",difficulty:"hard",
+   title:"Emergency Exposure Case",
+   setup:"A radiology technologist is reviewing a case. A worker at a nuclear facility was accidentally exposed to a whole-body radiation dose estimated at 4 Gy. He is now presenting to the radiology department 10 days post-exposure.",
+   question:"Based on the dose received, which syndrome would you expect this patient to be experiencing, and what is the primary concern for his survival?",
+   keyTerms:["Hematopoietic Syndrome","bone marrow","blood cells","leukopenia","infection","hemorrhage","4 Gy"],
+   modelAnswer:"At 4 Gy, this patient has Hematopoietic (Bone Marrow) Syndrome. The primary concern is severe depression of blood cell production — particularly white blood cells (leukopenia) and platelets — leading to risk of fatal infection and hemorrhage during the manifest illness stage.",
+   points:25},
+
+  {id:"s2",category:"Clinical Scenario",difficulty:"medium",
+   title:"Patient Education Moment",
+   setup:"A patient scheduled for a chest X-ray asks you: 'I heard that X-rays damage your DNA. How does that actually happen? Should I be worried?'",
+   question:"How would you explain the mechanism of radiation damage to this patient in accurate but accessible terms? Include the concept of indirect damage.",
+   keyTerms:["water","free radicals","indirect","DNA","ionization","diagnostic","low dose","risk"],
+   modelAnswer:"Most diagnostic x-ray damage occurs indirectly — x-rays ionize water molecules in your cells, creating unstable free radicals that can damage DNA. However, diagnostic x-ray doses are very low, and the body has repair mechanisms. The benefit of diagnosis typically far outweighs the minimal risk.",
+   points:20},
+
+  {id:"s3",category:"Clinical Scenario",difficulty:"medium",
+   title:"Radiation Safety Briefing",
+   setup:"You are orienting a new radiology student. They ask why radiation workers wear dosimeters and follow the ALARA principle — 'If the doses are so small, why does it matter?'",
+   question:"Explain the rationale behind ALARA and stochastic effects to justify radiation protection practices for workers.",
+   keyTerms:["ALARA","stochastic","no threshold","cumulative","cancer risk","occupational","dose limits","protection"],
+   modelAnswer:"ALARA is justified by stochastic effects — radiation-induced cancer risk has no safe threshold. Every additional exposure adds a small probability of cancer induction. Occupational workers receive repeated exposures over a career, making cumulative dose significant. Dosimeters track exposure to ensure annual limits are not exceeded.",
+   points:20},
+];
+
+function shuffle(a){return[...a].sort(()=>Math.random()-0.5)}
+
+const HS_KEY="radquest_scores_v1";
+function loadScores(){try{return JSON.parse(localStorage.getItem(HS_KEY)||"[]")}catch{return[]}}
+function saveScore(e){const s=loadScores();s.push(e);s.sort((a,b)=>b.score-a.score);const t=s.slice(0,10);localStorage.setItem(HS_KEY,JSON.stringify(t));return t}
+function dlCSV(scores){
+  const h="Rank,Name,Score,Correct,Accuracy,Date";
+  const r=scores.map((s,i)=>`${i+1},"${s.name}",${s.score},${s.correct},${s.accuracy}%,"${s.date}"`);
+  const b=new Blob([[h,...r].join("\n")],{type:"text/csv"});
+  const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="radquest_scores.csv";a.click();URL.revokeObjectURL(u);
+}
+
+// ── UI ATOMS ─────────────────────────────────────────────────────────────────
+const Stars=()=>{
+  const s=useRef(Array.from({length:80},(_,i)=>({id:i,x:Math.random()*100,y:Math.random()*100,sz:Math.random()*1.8+0.3,d:Math.random()*4,dur:1+Math.random()*3})));
+  return React.createElement("div",{style:{position:"fixed",inset:0,pointerEvents:"none",overflow:"hidden"}},
+    s.current.map(st=>React.createElement("div",{key:st.id,style:{position:"absolute",left:`${st.x}%`,top:`${st.y}%`,width:st.sz,height:st.sz,borderRadius:"50%",background:"#fff",opacity:0.5,animation:`twinkle ${st.dur}s ${st.d}s infinite alternate`}}))
+  );
+};
+
+const Scanline=()=>React.createElement("div",{style:{position:"fixed",inset:0,pointerEvents:"none",zIndex:900,background:"repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,20,10,0.07) 2px,rgba(0,20,10,0.07) 4px)"}});
+const CRT=()=>React.createElement("div",{style:{position:"fixed",inset:0,pointerEvents:"none",zIndex:901,boxShadow:"inset 0 0 100px rgba(0,0,0,0.7),inset 0 0 30px rgba(0,229,255,0.04)",borderRadius:6}});
+
+const Px=({children,size=14,color="#00e5ff",glow=true,style={}})=>
+  React.createElement("span",{style:{fontFamily:"'Courier New',monospace",fontSize:size,color,fontWeight:900,letterSpacing:2,textShadow:glow?`0 0 8px ${color},0 0 16px ${color}55`:"none",...style}},children);
+
+const RBtn=({children,onClick,color="#00e5ff",disabled=false,style={}})=>
+  React.createElement("button",{
+    disabled,
+    onClick:e=>{if(!disabled){sfx().click();onClick&&onClick(e)}},
+    style:{background:disabled?"#0a1520":"transparent",border:`2px solid ${disabled?"#1a2530":color}`,color:disabled?"#1a2530":color,fontFamily:"'Courier New',monospace",fontWeight:900,fontSize:"0.85rem",letterSpacing:2,padding:"11px 20px",cursor:disabled?"default":"pointer",textTransform:"uppercase",textShadow:disabled?"none":`0 0 8px ${color}`,boxShadow:disabled?"none":`0 0 12px ${color}33,inset 0 0 12px ${color}0a`,transition:"all 0.15s",...style},
+    onMouseEnter:e=>{if(!disabled){e.currentTarget.style.background=`${color}18`;e.currentTarget.style.boxShadow=`0 0 24px ${color}77,inset 0 0 20px ${color}18`}},
+    onMouseLeave:e=>{if(!disabled){e.currentTarget.style.background="transparent";e.currentTarget.style.boxShadow=`0 0 12px ${color}33,inset 0 0 12px ${color}0a`}},
+  },children);
+
+const DiffBadge=({d})=>{
+  const map={easy:{c:"#00e5b4",l:"EASY"},medium:{c:"#f59e0b",l:"MED"},hard:{c:"#ff4060",l:"HARD"}};
+  const m=map[d]||map.medium;
+  return React.createElement("span",{style:{background:`${m.c}18`,border:`1px solid ${m.c}66`,color:m.c,padding:"2px 8px",fontSize:"0.6rem",letterSpacing:2,fontFamily:"'Courier New',monospace",fontWeight:900}},m.l);
+};
+
+// ── MAIN APP ─────────────────────────────────────────────────────────────────
+function App(){
+  const[screen,setScreen]=useState("home"); // home|setup|game|scenario|result|scores
+  const[nameInput,setNameInput]=useState("");
+  const[playerName,setPlayerName]=useState("");
+  const[questions,setQuestions]=useState([]);
+  const[qIdx,setQIdx]=useState(0);
+  const[score,setScore]=useState(0);
+  const[correct,setCorrect]=useState(0);
+  const[streak,setStreak]=useState(0);
+  const[bestStreak,setBestStreak]=useState(0);
+  const[selected,setSelected]=useState(null);
+  const[answered,setAnswered]=useState(false);
+  const[isCorrect,setIsCorrect]=useState(null);
+  const[lives,setLives]=useState(3);
+  const[xp,setXp]=useState(0);
+  const[combo,setCombo]=useState(0);
+  const[flash,setFlash]=useState(null);
+  const[shake,setShake]=useState(false);
+  const[showStreak,setShowStreak]=useState(false);
+  const[particles,setParticles]=useState([]);
+  const[highScores,setHighScores]=useState([]);
+  const[lastResult,setLastResult]=useState(null);
+  const[currentScenario,setCurrentScenario]=useState(null);
+  const[scenarioAnswer,setScenarioAnswer]=useState("");
+  const[scenarioResult,setScenarioResult]=useState(null);
+  const[scenarioFeedback,setScenarioFeedback]=useState("");
+  const[scenarioLoading,setScenarioLoading]=useState(false);
+  const[modeQueue,setModeQueue]=useState([]); // mixed queue of mc+scenarios
+  const[modeIdx,setModeIdx]=useState(0);
+  const[totalItems,setTotalItems]=useState(0);
+  const particleId=useRef(0);
+  const nameRef=useRef(null);
+
+  useEffect(()=>{setHighScores(loadScores())},[]);
+  useEffect(()=>{if(screen==="setup"&&nameRef.current)nameRef.current.focus()},[screen]);
+
+  const startGame=()=>{
+    if(!nameInput.trim())return;
+    sfx().click();
+    setPlayerName(nameInput.trim());
+    // Build mixed queue: shuffle all MC questions + 2 scenarios interspersed
+    const mcQ=shuffle(QUESTIONS).map(q=>({...q,_type:"mc"}));
+    const scQ=shuffle(SCENARIOS).slice(0,2).map(s=>({...s,_type:"scenario"}));
+    // Insert scenarios at positions 4 and 9
+    const queue=[...mcQ];
+    queue.splice(4,0,scQ[0]);
+    if(scQ[1])queue.splice(9,0,scQ[1]);
+    setModeQueue(queue);
+    setModeIdx(0);
+    setTotalItems(queue.length);
+    setScore(0);setCorrect(0);setStreak(0);setBestStreak(0);
+    setXp(0);setCombo(0);setSelected(null);setAnswered(false);
+    setIsCorrect(null);setLives(3);setScenarioAnswer("");
+    setScenarioResult(null);setScenarioFeedback("");
+    setCurrentScenario(null);
+    setScreen("loading");
+    setTimeout(()=>{
+      loadItem(queue,0);
+    },800);
+  };
+
+  const loadItem=(queue,idx)=>{
+    if(idx>=queue.length){endGame();return}
+    const item=queue[idx];
+    setModeIdx(idx);
+    setSelected(null);setAnswered(false);setIsCorrect(null);
+    setScenarioAnswer("");setScenarioResult(null);setScenarioFeedback("");
+    if(item._type==="scenario"){
+      setCurrentScenario(item);
+      sfx().scenario();
+      setScreen("scenario");
+    } else {
+      setCurrentScenario(null);
+      setScreen("game");
+    }
+  };
+
+  const spawnParticles=(x,y,good)=>{
+    const colors=good?["#00e5ff","#00ff88","#ffff00","#ff88ff"]:["#ff4060","#ff8800"];
+    const newP=Array.from({length:good?16:6},(_,i)=>({
+      id:particleId.current++,x,y,
+      dx:(Math.random()-0.5)*280,dy:(Math.random()-1.2)*240,
+      color:colors[i%colors.length],size:good?5+Math.random()*8:4+Math.random()*5,
+      char:good?"☢":"✕",
+    }));
+    setParticles(p=>[...p,...newP]);
+    setTimeout(()=>setParticles(p=>p.filter(pt=>!newP.find(n=>n.id===pt.id))),900);
+  };
+
+  const handleAnswer=(idx,event)=>{
+    if(answered)return;
+    const q=modeQueue[modeIdx];
+    const good=idx===q.correct;
+    if(event){const r=event.currentTarget.getBoundingClientRect();spawnParticles(r.left+r.width/2,r.top+r.height/2,good)}
+    setSelected(idx);setAnswered(true);setIsCorrect(good);
+    setFlash(good?"good":"bad");setTimeout(()=>setFlash(null),300);
+    if(good){
+      const nc=combo+1,ns=streak+1;
+      const gained=nc>=3?20:10;
+      setScore(s=>s+1);setCorrect(c=>c+1);setXp(x=>x+gained);
+      setStreak(ns);setCombo(nc);if(ns>bestStreak)setBestStreak(ns);
+      if(ns>=3){sfx().streak?sfx().click():sfx().correct();setShowStreak(true);setTimeout(()=>setShowStreak(false),1400)}
+      else sfx().correct();
+    } else {
+      setStreak(0);setCombo(0);
+      const nl=lives-1;setLives(nl);
+      if(nl<=0)sfx().alarm();else sfx().wrong();
+      setShake(true);setTimeout(()=>setShake(false),500);
+    }
+  };
+
+  const submitScenario=async()=>{
+    if(!scenarioAnswer.trim()||scenarioLoading)return;
+    setScenarioLoading(true);sfx().radiation();
+    const s=currentScenario;
+    const prompt=`You are an expert radiology educator evaluating a student answer for a RAD 100 course.
+
+SCENARIO: ${s.setup}
+QUESTION: ${s.question}
+KEY TERMS EXPECTED: ${s.keyTerms.join(", ")}
+MODEL ANSWER: ${s.modelAnswer}
+
+STUDENT ANSWER: "${scenarioAnswer}"
+
+Evaluate the student's answer. Award points out of ${s.points} based on:
+- Accuracy of medical/radiological concepts (40%)
+- Use of correct terminology (30%)
+- Clinical reasoning and completeness (30%)
+
+Return ONLY valid JSON:
+{"points": <number 0-${s.points}>, "feedback": "<2-3 sentence specific feedback>", "correct_terms_used": ["term1","term2"], "missed_concepts": ["concept1"]}`;
+
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,messages:[{role:"user",content:prompt}]})
+      });
+      const data=await res.json();
+      const text=data.content?.find(b=>b.type==="text")?.text||"";
+      const clean=text.replace(/```json|```/g,"").trim();
+      const result=JSON.parse(clean);
+      setScenarioResult(result);
+      setScenarioFeedback(result.feedback);
+      setXp(x=>x+result.points);
+      setScore(sc=>sc+Math.round(result.points/s.points));
+      if(result.points>=s.points*0.7)sfx().correct();else sfx().wrong();
+    }catch{
+      setScenarioResult({points:0,feedback:"Could not connect to AI evaluator. Ask your instructor to review manually.",correct_terms_used:[],missed_concepts:[]});
+    }
+    setScenarioLoading(false);
+    setAnswered(true);
+  };
+
+  const nextItem=()=>{
+    sfx().click();
+    const nextIdx=modeIdx+1;
+    if(nextIdx>=modeQueue.length||lives<=0){endGame();return}
+    loadItem(modeQueue,nextIdx);
+  };
+
+  const endGame=useCallback(()=>{
+    const total=modeQueue.filter(q=>q._type==="mc").length;
+    const acc=total>0?Math.round(correct/total*100):0;
+    const entry={name:playerName,score,correct,total,accuracy:acc,bestStreak,date:new Date().toLocaleDateString()};
+    const updated=saveScore(entry);setHighScores(updated);setLastResult(entry);
+    sfx().fanfare();setScreen("result");
+  },[modeQueue,correct,playerName,score,bestStreak]);
+
+  useEffect(()=>{if(lives<=0&&answered)setTimeout(()=>endGame(),1000)},[lives,answered]);
+
+  const q=modeQueue[modeIdx];
+  const catColor={
+    "Radiation Syndromes":"#ff4060",
+    "Radiation Interactions":"#00e5ff",
+    "Radiation Biology":"#00ff88",
+    "Radiation Protection":"#f59e0b",
+    "Clinical Scenario":"#e879f9",
+  };
+  const qColor=q?catColor[q.category]||"#00e5ff":"#00e5ff";
+  const progress=totalItems>0?(modeIdx/totalItems)*100:0;
+  const RANK_COLORS=["#ffd700","#c0c0c0","#cd7f32"];
+
+  const gradeFor=(s,t)=>{
+    const p=t>0?s/t:0;
+    if(p>=0.9)return{label:"S",color:"#ffd700",msg:"OUTSTANDING! Future radiologist!",stars:5};
+    if(p>=0.75)return{label:"A",color:"#00ff88",msg:"EXCELLENT! Strong radiation knowledge!",stars:4};
+    if(p>=0.6)return{label:"B",color:"#00e5ff",msg:"GOOD WORK! Keep studying!",stars:3};
+    if(p>=0.4)return{label:"C",color:"#f59e0b",msg:"KEEP GOING! Review the material!",stars:2};
+    return{label:"D",color:"#ff4060",msg:"STUDY MORE! Review RAD 100 notes!",stars:1};
+  };
+
+  return(
+<div style={{minHeight:"100vh",background:"#050a0f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:16,position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+  <Stars/><Scanline/><CRT/>
+
+  {/* Flash overlay */}
+  {flash&&<div style={{position:"fixed",inset:0,zIndex:800,pointerEvents:"none",background:flash==="good"?"rgba(0,229,255,0.06)":"rgba(255,64,96,0.1)",animation:"sceneFade 0.3s ease"}}/>}
+
+  {/* Particles */}
+  {particles.map(p=><div key={p.id} style={{position:"fixed",left:p.x,top:p.y,fontSize:p.size,color:p.color,zIndex:999,fontWeight:900,textShadow:`0 0 8px ${p.color}`,animation:`radBurst 0.85s ease-out forwards`,"--dx":`${p.dx}px`,"--dy":`${p.dy}px`,pointerEvents:"none"}}>{p.char}</div>)}
+
+  {/* Streak popup */}
+  {showStreak&&streak>=3&&<div style={{position:"fixed",top:"16%",left:"50%",background:"#050a0f",border:"2px solid #ff4060",color:"#ff4060",padding:"10px 28px",fontFamily:"'Courier New',monospace",fontSize:"0.9rem",zIndex:1000,animation:"streakPop 0.4s ease",boxShadow:"0 0 30px #ff406077",letterSpacing:3,whiteSpace:"nowrap",fontWeight:900}}>☢ {streak}x STREAK!</div>}
+
+  {/* ── HOME ── */}
+  {screen==="home"&&(
+  <div style={{textAlign:"center",animation:"slideUp 0.5s ease",maxWidth:540,width:"100%",zIndex:10}}>
+    <div style={{overflow:"hidden",borderTop:"1px solid #00e5ff22",borderBottom:"1px solid #00e5ff22",padding:"5px 0",marginBottom:24,background:"rgba(0,229,255,0.03)"}}>
+      <div style={{animation:"marquee 14s linear infinite",whiteSpace:"nowrap",color:"#00e5ff",fontSize:"0.65rem",letterSpacing:3}}>★ RAD QUEST ★ RAD 100 TRAINING ★ RADIATION SYNDROMES · INTERACTIONS · BIOLOGY · PROTECTION ★ CLINICAL SCENARIOS ★</div>
+    </div>
+    <div style={{fontSize:"3.5rem",marginBottom:8,animation:"heartbeat 2s ease-in-out infinite"}}>☢️</div>
+    <div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1.8rem,6vw,3rem)",color:"#ff4060",textShadow:"0 0 20px #ff4060,0 0 40px #ff406066",animation:"glitch 5s infinite",marginBottom:4,letterSpacing:6,fontWeight:900}}>RAD</div>
+    <div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1.8rem,6vw,3rem)",color:"#00e5ff",textShadow:"0 0 20px #00e5ff,0 0 40px #00e5ff66",marginBottom:20,letterSpacing:6,fontWeight:900}}>QUEST</div>
+    <Px size={10} color="#888" style={{display:"block",marginBottom:20,letterSpacing:2}}>RAD 100 · RADIATION BIOLOGY & PROTECTION</Px>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center",marginBottom:24}}>
+      {Object.entries(catColor).filter(([k])=>k!=="Clinical Scenario").map(([cat,c])=><div key={cat} style={{border:`1px solid ${c}44`,color:c,background:`${c}0a`,padding:"3px 10px",fontSize:"0.58rem",letterSpacing:1}}>{cat}</div>)}
+      <div style={{border:"1px solid #e879f944",color:"#e879f9",background:"#e879f90a",padding:"3px 10px",fontSize:"0.58rem",letterSpacing:1}}>+ Clinical Scenarios</div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,maxWidth:360,margin:"0 auto 12px"}}>
+      <RBtn onClick={()=>setScreen("setup")} color="#00e5ff" style={{fontSize:"0.85rem",padding:"13px",letterSpacing:3,fontWeight:900}}>▶ PLAY</RBtn>
+      <RBtn onClick={()=>{sfx().click();setHighScores(loadScores());setScreen("scores")}} color="#ffd700" style={{fontSize:"0.8rem",padding:"13px",letterSpacing:2}}>🏆 SCORES</RBtn>
+    </div>
+    <div style={{color:"#00e5ff22",fontSize:"0.6rem",letterSpacing:3,animation:"blink 1.5s infinite",marginTop:12}}>MULTIPLE CHOICE · CLINICAL SCENARIOS · AI GRADING · 3 LIVES</div>
+  </div>
+  )}
+
+  {/* ── SETUP ── */}
+  {screen==="setup"&&(
+  <div style={{animation:"slideUp 0.4s ease",maxWidth:480,width:"100%",zIndex:10}}>
+    <div style={{border:"2px solid #00e5ff",padding:"32px 24px",background:"rgba(0,229,255,0.03)",boxShadow:"0 0 40px #00e5ff18"}}>
+      <Px size={11} color="#888" style={{display:"block",marginBottom:20,letterSpacing:3,textAlign:"center"}}>ENTER YOUR NAME</Px>
+      <div style={{marginBottom:28}}>
+        <input ref={nameRef} className="retro-input" maxLength={14} placeholder="STUDENT_ID"
+          value={nameInput} onChange={e=>{setNameInput(e.target.value.toUpperCase());sfx().type()}}
+          onKeyDown={e=>{if(e.key==="Enter")startGame()}}/>
+      </div>
+      <div style={{background:"rgba(255,64,96,0.06)",border:"1px solid #ff406033",padding:"14px",marginBottom:24}}>
+        <Px size={9} color="#ff4060" style={{display:"block",marginBottom:8,letterSpacing:2}}>WHAT TO EXPECT</Px>
+        {[["☢","Multiple choice questions on radiation syndromes, interactions, biology, and protection"],["🩺","Clinical scenario rounds judged by AI — explain your reasoning!"],["❤️","3 lives — lose them all and the game ends early"],["⚡","Earn XP and combo bonuses for correct streaks"]].map(([icon,text])=>
+          <div key={icon} style={{display:"flex",gap:10,marginBottom:6,alignItems:"flex-start"}}>
+            <span style={{fontSize:"0.9rem",flexShrink:0}}>{icon}</span>
+            <div style={{color:"#556",fontSize:"0.72rem",letterSpacing:1,lineHeight:1.5}}>{text}</div>
+          </div>
+        )}
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <RBtn onClick={startGame} disabled={!nameInput.trim()} color="#00e5ff" style={{flex:1,letterSpacing:2}}>▶ BEGIN TRAINING</RBtn>
+        <RBtn onClick={()=>setScreen("home")} color="#ff4060" style={{letterSpacing:2}}>◀ BACK</RBtn>
+      </div>
+    </div>
+  </div>
+  )}
+
+  {/* ── LOADING ── */}
+  {screen==="loading"&&(
+  <div style={{textAlign:"center",zIndex:10}}>
+    <div style={{fontSize:"3rem",marginBottom:16,animation:"heartbeat 0.8s ease-in-out infinite"}}>☢️</div>
+    <Px size={12} color="#00e5ff" style={{display:"block",letterSpacing:4,animation:"pulse 0.8s infinite"}}>LOADING TRAINING MODULE...</Px>
+  </div>
+  )}
+
+  {/* ── GAME (MC) ── */}
+  {screen==="game"&&q&&(
+  <div style={{width:"100%",maxWidth:580,zIndex:10,animation:shake?"shake 0.4s ease":"slideUp 0.3s ease"}}>
+    {/* HUD */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,padding:"8px 12px",border:"1px solid #00e5ff22",background:"rgba(0,229,255,0.03)"}}>
+      <div style={{display:"flex",gap:4}}>{[...Array(3)].map((_,i)=><span key={i} style={{fontSize:"1rem",opacity:i<lives?1:0.15,filter:i<lives?"none":"grayscale(1)"}}>❤️</span>)}</div>
+      <div style={{textAlign:"center"}}><Px size={8} color="#556" style={{display:"block",letterSpacing:1}}>{playerName}</Px><Px size={9} color="#ffd700">⚡{xp}XP{combo>=3?" ×2!":""}</Px></div>
+      <Px size={10} color="#00e5ff">{modeIdx+1}/{totalItems}</Px>
+      <div style={{display:"flex",alignItems:"center",gap:4}}><span>☢</span><Px size={10} color={streak>0?"#ff4060":"#333"}>{streak}</Px></div>
+    </div>
+    {/* Progress */}
+    <div style={{height:5,background:"#0a1520",border:"1px solid #1a2530",marginBottom:14,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${progress}%`,transition:"width 0.4s steps(8)",background:"repeating-linear-gradient(90deg,#00e5ff 0,#00e5ff 8px,#008899 8px,#008899 12px)"}}/>
+    </div>
+    {/* Category */}
+    <div style={{marginBottom:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{border:`1px solid ${qColor}`,color:qColor,background:`${qColor}11`,padding:"2px 10px",fontSize:"0.6rem",letterSpacing:2}}>{q.category?.toUpperCase()}</div>
+      <DiffBadge d={q.difficulty}/>
+    </div>
+    {/* Question card */}
+    <div style={{border:`1px solid ${qColor}33`,background:"rgba(0,10,20,0.9)",padding:"20px",marginBottom:12,boxShadow:`0 0 20px ${qColor}0a`}}>
+      <p style={{color:"#8899aa",margin:"0 0 16px",fontSize:"0.68rem",letterSpacing:2,textTransform:"uppercase"}}>Select the best answer:</p>
+      <p style={{color:"#dde8f0",fontSize:"0.98rem",lineHeight:1.7,margin:0,letterSpacing:0.5}}>{q.stem}</p>
+    </div>
+    {/* Options */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:12}}>
+      {q.options.map((opt,i)=>{
+        let bg="transparent",border=`1px solid #1a2530`,color="#6688aa",extra={};
+        if(answered){
+          if(i===q.correct){bg="rgba(0,229,180,0.1)";border="2px solid #00e5b4";color="#00e5b4";extra={textShadow:"0 0 8px #00e5b4"}}
+          else if(i===selected&&!isCorrect){bg="rgba(255,64,96,0.1)";border="2px solid #ff4060";color="#ff6680"}
+        }
+        return(
+        <button key={i} className="choice-btn" disabled={answered} onClick={e=>handleAnswer(i,e)}
+          style={{background:bg,border,color,padding:"12px 16px",fontSize:"0.88rem",cursor:answered?"default":"pointer",fontFamily:"'Courier New',monospace",fontWeight:600,transition:"all 0.15s",textAlign:"left",letterSpacing:0.5,display:"flex",alignItems:"center",gap:12,...extra}}>
+          <span style={{color:answered&&i===q.correct?"#00e5b4":answered&&i===selected&&!isCorrect?"#ff4060":"#334455",fontWeight:900,minWidth:20}}>{String.fromCharCode(65+i)}.</span>
+          {opt}
+        </button>);
+      })}
+    </div>
+    {/* Feedback */}
+    {answered&&(
+    <div style={{border:`2px solid ${isCorrect?"#00e5b4":"#ff4060"}`,background:isCorrect?"rgba(0,229,180,0.07)":"rgba(255,64,96,0.07)",padding:"14px",marginBottom:12,animation:"popIn 0.3s ease",boxShadow:`0 0 20px ${isCorrect?"#00e5b433":"#ff406033"}`}}>
+      <Px size={11} color={isCorrect?"#00e5b4":"#ff4060"} style={{display:"block",marginBottom:6}}>{isCorrect?`✔ CORRECT! +${combo>=3?20:10} XP`:"✘ INCORRECT"}</Px>
+      <p style={{color:"#556677",margin:0,fontSize:"0.75rem",lineHeight:1.65,borderTop:"1px solid #1a2530",paddingTop:8}}>{q.explanation}</p>
+    </div>
+    )}
+    {answered&&<RBtn onClick={nextItem} color="#00e5ff" style={{width:"100%",fontSize:"0.85rem",letterSpacing:3}}>{modeIdx+1>=totalItems||lives<=0?"▶ SEE RESULTS":"▶ NEXT"}</RBtn>}
+  </div>
+  )}
+
+  {/* ── SCENARIO ── */}
+  {screen==="scenario"&&currentScenario&&(
+  <div style={{width:"100%",maxWidth:600,zIndex:10,animation:"sceneFade 0.5s ease"}}>
+    {/* HUD */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,padding:"8px 12px",border:"1px solid #e879f922",background:"rgba(232,121,249,0.03)"}}>
+      <div style={{display:"flex",gap:4}}>{[...Array(3)].map((_,i)=><span key={i} style={{fontSize:"1rem",opacity:i<lives?1:0.15}}>❤️</span>)}</div>
+      <Px size={9} color="#e879f9">🩺 CLINICAL SCENARIO</Px>
+      <Px size={10} color="#00e5ff">{modeIdx+1}/{totalItems}</Px>
+    </div>
+    {/* Progress */}
+    <div style={{height:5,background:"#0a1520",border:"1px solid #1a2530",marginBottom:14,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${progress}%`,transition:"width 0.4s steps(8)",background:"repeating-linear-gradient(90deg,#e879f9 0,#e879f9 8px,#883399 8px,#883399 12px)"}}/>
+    </div>
+    {/* Scenario card */}
+    <div style={{border:"2px solid #e879f944",background:"rgba(0,5,15,0.92)",padding:"20px",marginBottom:12,boxShadow:"0 0 30px #e879f911"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+        <div style={{background:"#e879f922",border:"1px solid #e879f9",padding:"4px 12px",fontSize:"0.65rem",color:"#e879f9",letterSpacing:2,fontFamily:"'Courier New',monospace",fontWeight:900}}>🩺 {currentScenario.title.toUpperCase()}</div>
+        <DiffBadge d={currentScenario.difficulty}/>
+        <Px size={8} color="#e879f9" style={{marginLeft:"auto"}}>{currentScenario.points} PTS</Px>
+      </div>
+      <p style={{color:"#8899aa",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Case Setup:</p>
+      <p style={{color:"#ccddee",fontSize:"0.92rem",lineHeight:1.7,marginBottom:16,borderLeft:"3px solid #e879f944",paddingLeft:12}}>{currentScenario.setup}</p>
+      <p style={{color:"#8899aa",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Your Question:</p>
+      <p style={{color:"#e879f9",fontSize:"0.95rem",lineHeight:1.6,fontWeight:700}}>{currentScenario.question}</p>
+    </div>
+    {/* Key terms hint */}
+    <div style={{marginBottom:12,padding:"10px 14px",background:"rgba(255,215,0,0.04)",border:"1px solid #ffd70022"}}>
+      <Px size={8} color="#ffd700" style={{display:"block",marginBottom:6,letterSpacing:2}}>💡 KEY TERMS TO INCLUDE:</Px>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{currentScenario.keyTerms.map(t=><span key={t} style={{background:"#ffd70011",border:"1px solid #ffd70033",color:"#ffd70088",padding:"1px 8px",fontSize:"0.65rem",fontFamily:"'Courier New',monospace",letterSpacing:1}}>{t}</span>)}</div>
+    </div>
+    {/* Answer input */}
+    {!answered&&(
+    <div style={{marginBottom:12}}>
+      <textarea value={scenarioAnswer} onChange={e=>{setScenarioAnswer(e.target.value)}}
+        placeholder="Type your clinical response here... Use correct terminology and explain your reasoning."
+        style={{width:"100%",minHeight:100,background:"rgba(0,10,20,0.9)",border:"2px solid #e879f944",color:"#ccddee",fontFamily:"'Courier New',monospace",fontSize:"0.88rem",padding:"12px",outline:"none",resize:"vertical",lineHeight:1.6,letterSpacing:0.5}}
+        onFocus={e=>e.target.style.borderColor="#e879f9"}
+        onBlur={e=>e.target.style.borderColor="#e879f944"}/>
+    </div>
+    )}
+    {/* AI feedback */}
+    {scenarioResult&&(
+    <div style={{border:`2px solid ${scenarioResult.points>=currentScenario.points*0.7?"#00e5b4":"#ff4060"}`,background:scenarioResult.points>=currentScenario.points*0.7?"rgba(0,229,180,0.06)":"rgba(255,64,96,0.06)",padding:"16px",marginBottom:12,animation:"popIn 0.4s ease"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <Px size={11} color={scenarioResult.points>=currentScenario.points*0.7?"#00e5b4":"#ff4060"}>🤖 AI EVALUATION</Px>
+        <Px size={13} color="#ffd700">+{scenarioResult.points}/{currentScenario.points} PTS</Px>
+      </div>
+      <p style={{color:"#8899aa",margin:"0 0 10px",fontSize:"0.8rem",lineHeight:1.65}}>{scenarioFeedback}</p>
+      {scenarioResult.correct_terms_used?.length>0&&<div style={{marginBottom:6}}><Px size={8} color="#00e5b4" style={{display:"block",marginBottom:4,letterSpacing:2}}>✔ TERMS USED:</Px><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{scenarioResult.correct_terms_used.map(t=><span key={t} style={{background:"#00e5b411",border:"1px solid #00e5b433",color:"#00e5b4",padding:"1px 6px",fontSize:"0.62rem",fontFamily:"'Courier New',monospace"}}>{t}</span>)}</div></div>}
+      {scenarioResult.missed_concepts?.length>0&&<div><Px size={8} color="#ff4060" style={{display:"block",marginBottom:4,letterSpacing:2}}>⚠ REVIEW:</Px><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{scenarioResult.missed_concepts.map(t=><span key={t} style={{background:"#ff406011",border:"1px solid #ff406033",color:"#ff6680",padding:"1px 6px",fontSize:"0.62rem",fontFamily:"'Courier New',monospace"}}>{t}</span>)}</div></div>}
+      <div style={{marginTop:10,borderTop:"1px solid #1a2530",paddingTop:10}}>
+        <Px size={8} color="#888" style={{display:"block",marginBottom:4,letterSpacing:2}}>MODEL ANSWER:</Px>
+        <p style={{color:"#445566",fontSize:"0.75rem",lineHeight:1.65,fontStyle:"italic"}}>{currentScenario.modelAnswer}</p>
+      </div>
+    </div>
+    )}
+    {/* Buttons */}
+    {!answered&&<RBtn onClick={submitScenario} disabled={!scenarioAnswer.trim()||scenarioLoading} color="#e879f9" style={{width:"100%",fontSize:"0.85rem",letterSpacing:3,marginBottom:8}}>{scenarioLoading?"🤖 AI EVALUATING...":"▶ SUBMIT FOR AI GRADING"}</RBtn>}
+    {answered&&<RBtn onClick={nextItem} color="#00e5ff" style={{width:"100%",fontSize:"0.85rem",letterSpacing:3}}>{modeIdx+1>=totalItems||lives<=0?"▶ SEE RESULTS":"▶ NEXT"}</RBtn>}
+  </div>
+  )}
+
+  {/* ── RESULT ── */}
+  {screen==="result"&&lastResult&&(()=>{
+    const g=gradeFor(lastResult.correct,lastResult.total);
+    const rank=highScores.findIndex(s=>s.name===lastResult.name&&s.score===lastResult.score&&s.date===lastResult.date)+1;
+    return(
+    <div style={{textAlign:"center",animation:"slideUp 0.5s ease",maxWidth:500,width:"100%",zIndex:10}}>
+      <Px size={10} color="#556" style={{display:"block",marginBottom:4,letterSpacing:3}}>{playerName}</Px>
+      <div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(0.9rem,3vw,1.1rem)",color:g.color,letterSpacing:4,marginBottom:6,textShadow:`0 0 20px ${g.color}`,fontWeight:900}}>TRAINING COMPLETE</div>
+      <div style={{width:90,height:90,margin:"10px auto",border:`3px solid ${g.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"2.2rem",color:g.color,animation:"popIn 0.5s ease",boxShadow:`0 0 40px ${g.color}55`,background:`${g.color}0f`,fontWeight:900}}>{g.label}</div>
+      <div style={{fontSize:"1.4rem",marginBottom:6,letterSpacing:4}}>{[...Array(5)].map((_,i)=><span key={i} style={{opacity:i<g.stars?1:0.12,filter:i<g.stars?`drop-shadow(0 0 6px ${g.color})`:"none"}}>★</span>)}</div>
+      <Px size={9} color={g.color} style={{display:"block",marginBottom:4}}>{g.msg}</Px>
+      <Px size={8} color="#445" style={{display:"block",marginBottom:4}}>{lastResult.correct}/{lastResult.total} MC CORRECT · {lastResult.accuracy}% ACCURACY</Px>
+      {rank>0&&rank<=10&&<Px size={8} color="#ffd700" style={{display:"block",marginBottom:12}}>🏆 LEADERBOARD RANK #{rank}</Px>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
+        {[{icon:"⚡",label:"XP",val:xp,color:"#ffd700"},{icon:"☢",label:"STREAK",val:bestStreak,color:"#ff4060"},{icon:"🎯",label:"ACC",val:lastResult.accuracy+"%",color:"#00e5ff"}].map(s=>(
+        <div key={s.label} style={{border:`1px solid ${s.color}33`,background:`${s.color}06`,padding:"12px 4px"}}>
+          <div style={{fontSize:"1.1rem"}}>{s.icon}</div>
+          <Px size={12} color={s.color} style={{display:"block"}}>{s.val}</Px>
+          <div style={{color:"#223",fontSize:"0.55rem",letterSpacing:2,marginTop:2}}>{s.label}</div>
+        </div>))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <RBtn onClick={()=>{setNameInput(playerName);setScreen("setup")}} color="#00e5ff" style={{fontSize:"0.75rem",letterSpacing:2}}>▶ PLAY AGAIN</RBtn>
+        <RBtn onClick={()=>{sfx().click();setHighScores(loadScores());setScreen("scores")}} color="#ffd700" style={{fontSize:"0.75rem",letterSpacing:2}}>🏆 SCORES</RBtn>
+      </div>
+      <RBtn onClick={()=>setScreen("home")} color="#ff4060" style={{width:"100%",fontSize:"0.75rem",letterSpacing:2}}>⌂ HOME</RBtn>
+    </div>);
+  })()}
+
+  {/* ── SCORES ── */}
+  {screen==="scores"&&(
+  <div style={{width:"100%",maxWidth:540,zIndex:10,animation:"slideUp 0.4s ease"}}>
+    <div style={{textAlign:"center",marginBottom:16}}>
+      <div style={{fontFamily:"'Courier New',monospace",fontSize:"clamp(1rem,4vw,1.4rem)",color:"#ffd700",textShadow:"0 0 20px #ffd700",letterSpacing:6,fontWeight:900,marginBottom:4}}>🏆 HIGH SCORES</div>
+      <Px size={8} color="#445" style={{letterSpacing:3}}>TOP 10 TRAINEES</Px>
+    </div>
+    <div style={{border:"1px solid #ffd70022",background:"rgba(255,215,0,0.02)",marginBottom:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"28px 1fr 50px 50px 40px",gap:4,padding:"8px 12px",borderBottom:"1px solid #ffd70022",background:"rgba(255,215,0,0.04)"}}>
+        {["#","NAME","SCORE","ACC","DATE"].map(h=><Px key={h} size={7} color="#ffd700" style={{letterSpacing:1}}>{h}</Px>)}
+      </div>
+      {highScores.length===0&&<div style={{padding:"28px",textAlign:"center"}}><Px size={9} color="#223" style={{letterSpacing:2}}>NO SCORES YET</Px></div>}
+      {highScores.map((s,i)=>{
+        const isMe=lastResult&&s.name===lastResult.name&&s.score===lastResult.score&&s.date===lastResult.date;
+        return(
+        <div key={i} style={{display:"grid",gridTemplateColumns:"28px 1fr 50px 50px 40px",gap:4,padding:"8px 12px",borderBottom:"1px solid #ffffff06",background:isMe?"rgba(0,229,255,0.04)":"",borderLeft:isMe?"2px solid #00e5ff":"2px solid transparent"}}>
+          <Px size={8} color={i<3?RANK_COLORS[i]:"#223"}>{i+1}</Px>
+          <Px size={8} color={isMe?"#00e5ff":"#8899aa"} style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}{isMe?" ◀":""}</Px>
+          <Px size={8} color="#ffd700">{s.score}</Px>
+          <Px size={8} color="#00e5ff">{s.accuracy}%</Px>
+          <Px size={7} color="#334">{s.date}</Px>
+        </div>);
+      })}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+      <RBtn onClick={()=>dlCSV(highScores)} color="#00e5ff" disabled={highScores.length===0} style={{fontSize:"0.72rem",letterSpacing:2}}>⬇ DOWNLOAD CSV</RBtn>
+      <RBtn onClick={()=>{if(window.confirm("Clear all scores?")){localStorage.removeItem(HS_KEY);setHighScores([]);sfx().click()}}} color="#ff4060" disabled={highScores.length===0} style={{fontSize:"0.72rem",letterSpacing:2}}>🗑 CLEAR</RBtn>
+    </div>
+    <RBtn onClick={()=>setScreen("home")} color="#ff4060" style={{width:"100%",fontSize:"0.75rem",letterSpacing:2}}>⌂ HOME</RBtn>
+  </div>
+  )}
+
+</div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
