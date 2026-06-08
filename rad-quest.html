@@ -445,7 +445,7 @@ Return ONLY valid JSON:
         {[["☢","Multiple choice questions on radiation syndromes, interactions, biology, and protection"],["🩺","Clinical scenario rounds judged by AI — explain your reasoning!"],["❤️","3 lives — lose them all and the game ends early"],["⚡","Earn XP and combo bonuses for correct streaks"]].map(([icon,text])=>
           <div key={icon} style={{display:"flex",gap:10,marginBottom:6,alignItems:"flex-start"}}>
             <span style={{fontSize:"0.9rem",flexShrink:0}}>{icon}</span>
-            <div style={{color:"#556",fontSize:"0.72rem",letterSpacing:1,lineHeight:1.5}}>{text}</div>
+            <div style={{color:"#7a9ab4",fontSize:"0.72rem",letterSpacing:1,lineHeight:1.5}}>{text}</div>
           </div>
         )}
       </div>
@@ -486,8 +486,8 @@ Return ONLY valid JSON:
     </div>
     {/* Question card */}
     <div style={{border:`1px solid ${qColor}33`,background:"rgba(0,10,20,0.9)",padding:"20px",marginBottom:12,boxShadow:`0 0 20px ${qColor}0a`}}>
-      <p style={{color:"#8899aa",margin:"0 0 16px",fontSize:"0.68rem",letterSpacing:2,textTransform:"uppercase"}}>Select the best answer:</p>
-      <p style={{color:"#dde8f0",fontSize:"0.98rem",lineHeight:1.7,margin:0,letterSpacing:0.5}}>{q.stem}</p>
+      <p style={{color:"#b8cce0",margin:"0 0 16px",fontSize:"0.68rem",letterSpacing:2,textTransform:"uppercase"}}>Select the best answer:</p>
+      <p style={{color:"#e8f4ff",fontSize:"0.98rem",lineHeight:1.7,margin:0,letterSpacing:0.5}}>{q.stem}</p>
     </div>
     {/* Options */}
     <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:12}}>
@@ -509,7 +509,7 @@ Return ONLY valid JSON:
     {answered&&(
     <div style={{border:`2px solid ${isCorrect?"#00e5b4":"#ff4060"}`,background:isCorrect?"rgba(0,229,180,0.07)":"rgba(255,64,96,0.07)",padding:"14px",marginBottom:12,animation:"popIn 0.3s ease",boxShadow:`0 0 20px ${isCorrect?"#00e5b433":"#ff406033"}`}}>
       <Px size={11} color={isCorrect?"#00e5b4":"#ff4060"} style={{display:"block",marginBottom:6}}>{isCorrect?`✔ CORRECT! +${combo>=3?20:10} XP`:"✘ INCORRECT"}</Px>
-      <p style={{color:"#556677",margin:0,fontSize:"0.75rem",lineHeight:1.65,borderTop:"1px solid #1a2530",paddingTop:8}}>{q.explanation}</p>
+      <p style={{color:"#90aec4",margin:0,fontSize:"0.75rem",lineHeight:1.65,borderTop:"1px solid #1a2530",paddingTop:8}}>{q.explanation}</p>
     </div>
     )}
     {answered&&<RBtn onClick={nextItem} color="#00e5ff" style={{width:"100%",fontSize:"0.85rem",letterSpacing:3}}>{modeIdx+1>=totalItems||lives<=0?"▶ SEE RESULTS":"▶ NEXT"}</RBtn>}
@@ -536,9 +536,9 @@ Return ONLY valid JSON:
         <DiffBadge d={currentScenario.difficulty}/>
         <Px size={8} color="#e879f9" style={{marginLeft:"auto"}}>{currentScenario.points} PTS</Px>
       </div>
-      <p style={{color:"#8899aa",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Case Setup:</p>
-      <p style={{color:"#ccddee",fontSize:"0.92rem",lineHeight:1.7,marginBottom:16,borderLeft:"3px solid #e879f944",paddingLeft:12}}>{currentScenario.setup}</p>
-      <p style={{color:"#8899aa",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Your Question:</p>
+      <p style={{color:"#b8cce0",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Case Setup:</p>
+      <p style={{color:"#d8eeff",fontSize:"0.92rem",lineHeight:1.7,marginBottom:16,borderLeft:"3px solid #e879f944",paddingLeft:12}}>{currentScenario.setup}</p>
+      <p style={{color:"#b8cce0",fontSize:"0.7rem",letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Your Question:</p>
       <p style={{color:"#e879f9",fontSize:"0.95rem",lineHeight:1.6,fontWeight:700}}>{currentScenario.question}</p>
     </div>
     {/* Key terms hint */}
@@ -551,7 +551,7 @@ Return ONLY valid JSON:
     <div style={{marginBottom:12}}>
       <textarea value={scenarioAnswer} onChange={e=>{setScenarioAnswer(e.target.value)}}
         placeholder="Type your clinical response here... Use correct terminology and explain your reasoning."
-        style={{width:"100%",minHeight:100,background:"rgba(0,10,20,0.9)",border:"2px solid #e879f944",color:"#ccddee",fontFamily:"'Courier New',monospace",fontSize:"0.88rem",padding:"12px",outline:"none",resize:"vertical",lineHeight:1.6,letterSpacing:0.5}}
+        style={{width:"100%",minHeight:100,background:"rgba(0,10,20,0.9)",border:"2px solid #e879f944",color:"#d8eeff",fontFamily:"'Courier New',monospace",fontSize:"0.88rem",padding:"12px",outline:"none",resize:"vertical",lineHeight:1.6,letterSpacing:0.5}}
         onFocus={e=>e.target.style.borderColor="#e879f9"}
         onBlur={e=>e.target.style.borderColor="#e879f944"}/>
     </div>
@@ -563,12 +563,12 @@ Return ONLY valid JSON:
         <Px size={11} color={scenarioResult.points>=currentScenario.points*0.7?"#00e5b4":"#ff4060"}>🤖 AI EVALUATION</Px>
         <Px size={13} color="#ffd700">+{scenarioResult.points}/{currentScenario.points} PTS</Px>
       </div>
-      <p style={{color:"#8899aa",margin:"0 0 10px",fontSize:"0.8rem",lineHeight:1.65}}>{scenarioFeedback}</p>
+      <p style={{color:"#b8cce0",margin:"0 0 10px",fontSize:"0.8rem",lineHeight:1.65}}>{scenarioFeedback}</p>
       {scenarioResult.correct_terms_used?.length>0&&<div style={{marginBottom:6}}><Px size={8} color="#00e5b4" style={{display:"block",marginBottom:4,letterSpacing:2}}>✔ TERMS USED:</Px><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{scenarioResult.correct_terms_used.map(t=><span key={t} style={{background:"#00e5b411",border:"1px solid #00e5b433",color:"#00e5b4",padding:"1px 6px",fontSize:"0.62rem",fontFamily:"'Courier New',monospace"}}>{t}</span>)}</div></div>}
       {scenarioResult.missed_concepts?.length>0&&<div><Px size={8} color="#ff4060" style={{display:"block",marginBottom:4,letterSpacing:2}}>⚠ REVIEW:</Px><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{scenarioResult.missed_concepts.map(t=><span key={t} style={{background:"#ff406011",border:"1px solid #ff406033",color:"#ff6680",padding:"1px 6px",fontSize:"0.62rem",fontFamily:"'Courier New',monospace"}}>{t}</span>)}</div></div>}
       <div style={{marginTop:10,borderTop:"1px solid #1a2530",paddingTop:10}}>
         <Px size={8} color="#888" style={{display:"block",marginBottom:4,letterSpacing:2}}>MODEL ANSWER:</Px>
-        <p style={{color:"#445566",fontSize:"0.75rem",lineHeight:1.65,fontStyle:"italic"}}>{currentScenario.modelAnswer}</p>
+        <p style={{color:"#8aaabf",fontSize:"0.75rem",lineHeight:1.65,fontStyle:"italic"}}>{currentScenario.modelAnswer}</p>
       </div>
     </div>
     )}
@@ -596,7 +596,7 @@ Return ONLY valid JSON:
         <div key={s.label} style={{border:`1px solid ${s.color}33`,background:`${s.color}06`,padding:"12px 4px"}}>
           <div style={{fontSize:"1.1rem"}}>{s.icon}</div>
           <Px size={12} color={s.color} style={{display:"block"}}>{s.val}</Px>
-          <div style={{color:"#223",fontSize:"0.55rem",letterSpacing:2,marginTop:2}}>{s.label}</div>
+          <div style={{color:"#5a7a94",fontSize:"0.55rem",letterSpacing:2,marginTop:2}}>{s.label}</div>
         </div>))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
